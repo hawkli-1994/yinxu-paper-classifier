@@ -5,7 +5,13 @@ test('renders the settings workflow in the packaged Electron renderer', async ()
   const app = await electron.launch({ args: ['.'] });
   try {
     const window = await app.firstWindow();
+    const consoleIssues: string[] = [];
+    window.on('console', (entry) => {
+      if (entry.type() === 'error' || entry.type() === 'warning') consoleIssues.push(entry.text());
+    });
 
+    await expect(window).toHaveTitle('殷墟论文分类助手');
+    await expect(window.locator('vite-error-overlay')).toHaveCount(0);
     await expect(window.getByRole('heading', { name: '模型与 OCR 设置' })).toBeVisible();
     await expect(window.getByText('北京容芯致远科技有限公司')).toBeVisible();
     await expect(window.getByRole('button', { name: 'PaddleOCR-VL-1.5（自动转 PNG）' })).toBeVisible();
@@ -45,6 +51,18 @@ test('renders the settings workflow in the packaged Electron renderer', async ()
     await expect(window.getByRole('heading', { name: '规则与记忆' })).toBeVisible();
     await expect(window.getByText('新建个人规则')).toBeVisible();
     await expect(window.getByText('待确认候选（0）')).toBeVisible();
+
+    const sidebar = window.locator('.academic-sider');
+    const content = window.locator('.academic-content');
+    const initialSidebarTop = await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().top));
+    await content.hover();
+    await window.mouse.wheel(0, 900);
+    await expect.poll(() => content.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    expect(await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().top))).toBe(initialSidebarTop);
+    expect(await window.evaluate(() => document.scrollingElement?.scrollTop ?? -1)).toBe(0);
+    expect(await sidebar.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto');
+    const relevantConsoleIssues = consoleIssues.filter((issue) => !issue.includes('Electron Security Warning (Insecure Content-Security-Policy)'));
+    expect(relevantConsoleIssues).toEqual([]);
   } finally {
     await app.close();
   }

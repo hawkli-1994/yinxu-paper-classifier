@@ -8,14 +8,20 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   min-width: 980px;
-  min-height: 100vh;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 0;
 }
 
 .app-loading {
@@ -27,10 +33,20 @@ body {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-shell > .ant-layout {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .academic-sider {
+  height: 100%;
+  overflow-y: auto;
   padding: 22px 12px;
 }
 
@@ -65,14 +81,18 @@ body {
 
 .academic-header {
   display: flex;
+  flex: 0 0 64px;
   align-items: center;
   border-bottom: 1px solid #d7d1c5;
   padding: 0 34px;
 }
 
 .academic-content {
+  min-height: 0;
   padding: 30px 34px 48px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .page-section {
