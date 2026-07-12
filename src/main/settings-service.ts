@@ -5,7 +5,7 @@ import { isCustomProvider, normalizeAgentBaseUrl } from '../shared/provider-conf
 
 const defaultSettings: AppSettings = {
   agent: { provider: '', modelId: '', thinkingLevel: 'medium' },
-  ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' },
+  ocr: { mode: 'auto', baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' },
   memory: { enabled: true, personalRulesPrompt: '' }
 };
 
@@ -19,7 +19,11 @@ const normalizeSettings = (settings: Partial<AppSettings>): AppSettings => ({
     modelId: settings.agent?.modelId?.trim() ?? '',
     baseUrl: isCustomProvider(settings.agent?.provider ?? '') ? normalizeAgentBaseUrl(settings.agent?.baseUrl) : undefined
   },
-  ocr: { ...defaultSettings.ocr, ...settings.ocr },
+  ocr: {
+    ...defaultSettings.ocr,
+    ...settings.ocr,
+    mode: ['auto', 'local', 'cloud'].includes(settings.ocr?.mode ?? '') ? settings.ocr!.mode! : 'auto'
+  },
   memory: {
     ...defaultSettings.memory,
     ...settings.memory,

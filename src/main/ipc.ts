@@ -10,7 +10,7 @@ import { createElectronCredentialVault } from './credentials-service';
 import { exportWorkbook } from './export-service';
 import { getProjectDirectory } from './paths';
 import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pdf-service';
-import { ocrPagesIndividually } from './ocr-service';
+import { processPagesWithOcrMode } from './ocr-service';
 import {
   activateResultRevision,
   completeClassificationRun,
@@ -81,24 +81,35 @@ const toSettingsView = async (appRoot: string, settings: AppSettings): Promise<S
 
 const prepareProject = async (appRoot: string, project: ProjectRecord, settings: AppSettings): Promise<ProjectPreparation> => {
   const inspection = await inspectPdf(project.sourcePdfPath);
-  let pages = inspection.pages;
-  let ocrApplied = false;
   const vault = createElectronCredentialVault(appRoot);
   const ocrKey = await vault.get('ocr:siliconflow');
-
-  if (inspection.pagesNeedingOcr.length > 0 && ocrKey) {
-    pages = await ocrPagesIndividually(new Uint8Array(await readFile(project.sourcePdfPath)), pages, inspection.pagesNeedingOcr, {
+  const processed = await processPagesWithOcrMode({
+    mode: settings.ocr.mode,
+    pdfBytes: new Uint8Array(await readFile(project.sourcePdfPath)),
+    pages: inspection.pages,
+    pagesNeedingOcr: inspection.pagesNeedingOcr,
+    config: ocrKey ? {
       baseUrl: settings.ocr.baseUrl,
       apiKey: ocrKey,
       model: settings.ocr.model
-    });
-    ocrApplied = true;
-  }
-
-  const textReport = buildTextPreparationReport(pages, ocrApplied ? inspection.pagesNeedingOcr : []);
-  await writeExtractedText(project.rootPath, pages, textReport);
+    } : undefined
+  });
+  const textReport = {
+    ...buildTextPreparationReport(processed.pages, processed.cloudAppliedPages),
+    ocrMode: settings.ocr.mode,
+    cloudAttemptedPages: processed.cloudAttemptedPages,
+    localFallbackPages: processed.localFallbackPages
+  };
+  await writeExtractedText(project.rootPath, processed.pages, textReport);
   const preparedProject = await updateProjectMetadata(project, { ocrModel: settings.ocr.model });
-  return { project: preparedProject, pageCount: inspection.pageCount, pagesNeedingOcr: inspection.pagesNeedingOcr, ocrApplied, textReport };
+  return {
+    project: preparedProject,
+    pageCount: inspection.pageCount,
+    ocrMode: settings.ocr.mode,
+    pagesNeedingOcr: inspection.pagesNeedingOcr,
+    ocrApplied: processed.cloudAppliedPages.length > 0,
+    textReport
+  };
 };
 
 export const registerIpcHandlers = (appRoot: string, knowledgePackage: KnowledgePackage): void => {
@@ -117,6 +128,9 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   ipcMain.handle('settings:save', async (_event, input: SettingsInput): Promise<SettingsView> => {
     const settings: AppSettings = { agent: input.agent, ocr: input.ocr, memory: input.memory };
     const vault = createElectronCredentialVault(appRoot);
+    if (input.ocr.mode === 'cloud' && !input.ocrApiKey?.trim() && !(await vault.get('ocr:siliconflow'))) {
+      throw new Error('选择“云端 OCR”时必须配置 OCR API Key。');
+    }
     if (input.agentApiKey?.trim() && input.agent.provider) await vault.set(getAgentCredentialKey(input.agent), input.agentApiKey.trim());
     if (input.ocrApiKey?.trim()) await vault.set('ocr:siliconflow', input.ocrApiKey.trim());
     await saveSettings(appRoot, settings);
@@ -146,8 +160,13 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
 
   ipcMain.handle('project:create', async (_event, input: CreateProjectInput): Promise<ProjectWorkspace> => {
     if (extname(input.sourcePdfPath).toLocaleLowerCase() !== '.pdf') throw new Error('主论文必须是 PDF。');
+    const settings = await loadSettings(appRoot);
+    if (settings.ocr.mode === 'cloud') {
+      const vault = createElectronCredentialVault(appRoot);
+      if (!(await vault.get('ocr:siliconflow'))) throw new Error('当前为“云端 OCR”模式，请先在设置中配置 OCR API Key。');
+    }
     let project = await createProject(input.sourcePdfPath, appRoot, knowledgePackage.version);
-    const preparation = await prepareProject(appRoot, project, await loadSettings(appRoot));
+    const preparation = await prepareProject(appRoot, project, settings);
     project = preparation.project;
     if (input.supplementalFiles.length) await addSupplementalFiles(project, input.supplementalFiles);
     for (const note of input.supplementalNotes) await addSupplementalNote(project, note);

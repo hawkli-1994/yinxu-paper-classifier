@@ -37,7 +37,7 @@ describe('paper result normalization', () => {
     expect(result.reviewStatus).toBe('needs_review');
   });
 
-  it('returns an editable red result for invalid candidates and evidence on the wrong page', () => {
+  it('keeps invalid candidates reviewable and deterministically corrects a uniquely matched evidence page', () => {
     const draft = makeAgentDraft({
       candidates: [
         { code: 'B99', score: 0.9, reason: 'invalid' },
@@ -50,10 +50,31 @@ describe('paper result normalization', () => {
     });
 
     const result = normalizePaperResult(draft, pages, { ocrQuality: 'high' });
-    expect(result.validationIssues.map((issue) => issue.code)).toEqual(expect.arrayContaining(['INVALID_CANDIDATE', 'UNVERIFIABLE_EVIDENCE']));
-    expect(result.confidenceBand).toBe('red');
+    expect(result.validationIssues.map((issue) => issue.code)).toContain('INVALID_CANDIDATE');
+    expect(result.validationIssues.map((issue) => issue.code)).not.toContain('UNVERIFIABLE_EVIDENCE');
+    expect(result.evidence[0]?.page).toBe(1);
+    expect(result.confidenceBand).toBe('yellow');
     expect(result.reviewStatus).toBe('needs_review');
     expect(() => normalizePaperResult(draft, pages, { ocrQuality: 'high', reviewed: true })).toThrow(PaperResultValidationError);
+  });
+
+  it('corrects a field evidence page when its exact quote occurs on only one PDF page', () => {
+    const base = makeAgentDraft();
+    const draft = makeAgentDraft({
+      fieldAssessments: {
+        ...base.fieldAssessments,
+        核心研究时段: {
+          score: 0.9,
+          reason: '原文明确。',
+          evidence: [{ page: 2, quote: '本文讨论殷墟卜辞中的祭祀制度。', reason: '页码偏移' }]
+        }
+      }
+    });
+
+    const result = normalizePaperResult(draft, pages, { ocrQuality: 'high' });
+
+    expect(result.fieldAssessments.核心研究时段.evidence[0]?.page).toBe(1);
+    expect(result.validationIssues.map((issue) => issue.code)).not.toContain('UNVERIFIABLE_FIELD_EVIDENCE');
   });
 
   it('normalizes duplicate cross references and confirms a reviewed result', () => {

@@ -1,6 +1,6 @@
 import { LinkOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Divider, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Divider, Form, Input, Radio, Select, Space, Switch, Tag, Typography, message } from 'antd';
 import type { SettingsInput } from '../../../shared/contracts';
 import {
   CUSTOM_PROVIDER_ID,
@@ -20,6 +20,7 @@ interface SettingsFormValues {
   modelId: string;
   thinkingLevel: SettingsInput['agent']['thinkingLevel'];
   agentApiKey?: string;
+  ocrMode: SettingsInput['ocr']['mode'];
   ocrBaseUrl: string;
   ocrModel: string;
   ocrApiKey?: string;
@@ -47,6 +48,21 @@ const ocrSuggestedModels = [
   { id: 'PaddlePaddle/PaddleOCR-VL-1.5', label: 'PaddleOCR-VL-1.5（自动转 PNG）' }
 ];
 
+const ocrModeDescriptions: Record<SettingsInput['ocr']['mode'], { type: 'info' | 'success' | 'warning'; message: string }> = {
+  auto: {
+    type: 'info',
+    message: '自动：先判断哪些页面需要 OCR；需要识别时优先调用云端，云端失败或质量不合格则回退本地结果。没有 Key 时仍可使用本地能力。'
+  },
+  local: {
+    type: 'success',
+    message: '本地：只使用 PDF.js + MuPDF 在本机解析，论文不会发送到 OCR 服务；纯图片扫描页可能需要人工复核。'
+  },
+  cloud: {
+    type: 'warning',
+    message: '云端：论文每一页都必须经云端 OCR，必须配置 Key；云端调用失败时会停止导入，不会静默回退本地。'
+  }
+};
+
 export const SettingsPage = (): React.JSX.Element => {
   const [form] = Form.useForm<SettingsFormValues>();
   const [saving, setSaving] = useState(false);
@@ -55,6 +71,7 @@ export const SettingsPage = (): React.JSX.Element => {
   const selectedProvider = Form.useWatch('provider', form);
   const selectedBaseUrl = Form.useWatch('baseUrl', form);
   const selectedModelId = Form.useWatch('modelId', form);
+  const selectedOcrMode = Form.useWatch('ocrMode', form) ?? 'auto';
   const selectedOcrModel = Form.useWatch('ocrModel', form);
   const providerPreset = getProviderPreset(selectedProvider ?? '');
   const providerGroup = providerPreset ? getProviderGroup(providerPreset.group) : undefined;
@@ -71,6 +88,7 @@ export const SettingsPage = (): React.JSX.Element => {
       baseUrl: settings.agent.baseUrl,
       modelId: settings.agent.modelId,
       thinkingLevel: settings.agent.thinkingLevel,
+      ocrMode: settings.ocr.mode,
       ocrBaseUrl: settings.ocr.baseUrl,
       ocrModel: settings.ocr.model,
       memoryEnabled: settings.memory.enabled,
@@ -88,7 +106,7 @@ export const SettingsPage = (): React.JSX.Element => {
           thinkingLevel: values.thinkingLevel,
           baseUrl: isCustomProvider(values.provider) ? normalizeAgentBaseUrl(values.baseUrl) : undefined
         },
-        ocr: { baseUrl: values.ocrBaseUrl.trim(), model: values.ocrModel.trim() },
+        ocr: { mode: values.ocrMode, baseUrl: values.ocrBaseUrl.trim(), model: values.ocrModel.trim() },
         memory: { enabled: values.memoryEnabled, personalRulesPrompt: values.personalRulesPrompt?.trim() ?? '' },
         agentApiKey: values.agentApiKey,
         ocrApiKey: values.ocrApiKey
@@ -133,7 +151,7 @@ export const SettingsPage = (): React.JSX.Element => {
       <Typography.Title level={2}>模型与 OCR 设置</Typography.Title>
       <Typography.Paragraph type="secondary">从按量 API、聚合服务或 Coding Plan 订阅中选择。Coding Plan 会固定使用对应厂商的专用端点，并与按量 API 分开保存凭据；只有“自定义兼容端点”需要填写 Base URL。</Typography.Paragraph>
       <Alert className="section-alert" type="info" showIcon message="Windows 中凭据保存在当前用户的系统安全存储；macOS 开发预览若系统安全存储不可用，凭据只保留到本次应用关闭。凭据不会写入论文项目或 Excel。" />
-      <Form form={form} layout="vertical" onFinish={save} initialValues={{ thinkingLevel: 'medium', ocrBaseUrl: 'https://api.siliconflow.cn/v1', ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5', memoryEnabled: true, personalRulesPrompt: '' }}>
+      <Form form={form} layout="vertical" onFinish={save} initialValues={{ thinkingLevel: 'medium', ocrMode: 'auto', ocrBaseUrl: 'https://api.siliconflow.cn/v1', ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5', memoryEnabled: true, personalRulesPrompt: '' }}>
         <Card title="Pi Agent 模型" className="academic-card">
           <div className="form-grid">
             <Form.Item label="模型厂商" name="provider" rules={[{ required: true, message: '请选择模型厂商或自定义兼容端点。' }]}>
@@ -217,13 +235,30 @@ export const SettingsPage = (): React.JSX.Element => {
         </Card>
         <Divider />
         <Card title="扫描件 OCR" className="academic-card">
+          <Form.Item label="OCR 执行模式" name="ocrMode" rules={[{ required: true }]}>
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              options={[
+                { label: '自动', value: 'auto' },
+                { label: '本地', value: 'local' },
+                { label: '云端', value: 'cloud' }
+              ]}
+            />
+          </Form.Item>
+          <Alert
+            className="section-alert compact-alert"
+            showIcon
+            type={ocrModeDescriptions[selectedOcrMode].type}
+            message={ocrModeDescriptions[selectedOcrMode].message}
+          />
           <div className="form-grid">
-            <Form.Item label="OCR 服务地址" name="ocrBaseUrl" rules={[{ required: true }]}>
-              <Input />
+            <Form.Item label="OCR 服务地址" name="ocrBaseUrl" rules={selectedOcrMode === 'local' ? [] : [{ required: true, message: '请填写 OCR 服务地址。' }]}>
+              <Input disabled={selectedOcrMode === 'local'} />
             </Form.Item>
             <div className="model-id-field">
-              <Form.Item label="OCR 模型" name="ocrModel" rules={[{ required: true }]} extra="PaddleOCR-VL-1.5 会在本机将每个待识别 PDF 页转换为 PNG，再发送至 SiliconFlow。">
-                <Input />
+              <Form.Item label="OCR 模型" name="ocrModel" rules={selectedOcrMode === 'local' ? [] : [{ required: true, message: '请填写 OCR 模型。' }]} extra="PaddleOCR-VL-1.5 会在本机将待识别页转换为 PNG，再发送至 SiliconFlow。">
+                <Input disabled={selectedOcrMode === 'local'} />
               </Form.Item>
               <div className="model-suggestion-list" aria-label="推荐 OCR 模型">
                 <Typography.Text type="secondary" className="model-suggestion-label">推荐 OCR 模型</Typography.Text>
@@ -234,6 +269,7 @@ export const SettingsPage = (): React.JSX.Element => {
                       size="small"
                       type={selectedOcrModel === model.id ? 'primary' : 'default'}
                       className="model-suggestion-button"
+                      disabled={selectedOcrMode === 'local'}
                       onClick={() => useSuggestedOcrModel(model.id)}
                     >
                       {model.label}
@@ -250,9 +286,13 @@ export const SettingsPage = (): React.JSX.Element => {
                 </Space>
               }
               name="ocrApiKey"
-              rules={settings?.hasOcrKey ? [] : [{ required: true, message: '扫描件 OCR 需要 API Key。' }]}
+              rules={selectedOcrMode === 'cloud' && !settings?.hasOcrKey ? [{ required: true, message: '云端 OCR 模式必须配置 API Key。' }] : []}
             >
-              <Input.Password placeholder="OCR 仅在扫描页需要时调用" autoComplete="new-password" />
+              <Input.Password
+                disabled={selectedOcrMode === 'local'}
+                placeholder={selectedOcrMode === 'cloud' ? '必填：所有页面都将调用云端 OCR' : '可选：自动模式需要识别时优先使用云端'}
+                autoComplete="new-password"
+              />
             </Form.Item>
           </div>
         </Card>

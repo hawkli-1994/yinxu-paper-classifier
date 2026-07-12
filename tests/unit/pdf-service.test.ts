@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
-import { buildTextPreparationReport, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, writeExtractedText } from '../../src/main/pdf-service';
+import { buildTextPreparationReport, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, writeExtractedText } from '../../src/main/pdf-service';
 import { createFixturePdf } from '../fixtures/pdf';
 
 const roots: string[] = [];
@@ -45,6 +45,18 @@ describe('PDF inspection', () => {
     expect(loaded.getPageCount()).toBe(1);
     expect(inspection.pages[0]?.text).toContain('second page text');
     expect(inspection.pages[0]?.text).not.toContain('first page text');
+  });
+
+  it('ships a local MuPDF text extractor without requiring Python', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-pdf-'));
+    roots.push(root);
+    const file = join(root, 'mupdf.pdf');
+    await createFixturePdf(file, 'MuPDF local fallback keeps academic text available');
+
+    const pages = extractPdfTextWithMuPdf(new Uint8Array(await readFile(file)));
+
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toContain('MuPDF local fallback');
   });
 
   it('renders a PDF page as PNG for image-only OCR providers', async () => {
@@ -92,5 +104,14 @@ describe('PDF inspection', () => {
 
     expect(report.quality).toBe('low');
     expect(report.pages[1]).toMatchObject({ needsReview: true, qualityFlags: ['language_mismatch'] });
+  });
+
+  it('rejects OCR model control tokens even when the response is long', () => {
+    const report = buildTextPreparationReport([
+      { page: 1, text: `<|LOC_1_2|>${'殷墟'.repeat(80)}`, source: 'ocr' }
+    ], [1]);
+
+    expect(report.quality).toBe('low');
+    expect(report.pages[0]?.qualityFlags).toContain('model_artifact');
   });
 });

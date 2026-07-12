@@ -34,6 +34,7 @@ export const ProcessPage = (): React.JSX.Element => {
 
   if (!project || !preparation) return <Empty description="请先导入论文" />;
   const projectEvents = events.filter((event) => event.projectId === project.id);
+  const ocrMode = preparation.ocrMode ?? preparation.textReport?.ocrMode ?? 'auto';
   const progress = running ? Math.min(92, 20 + projectEvents.length * 12) : projectEvents.some((event) => event.phase === 'validated') ? 100 : 0;
 
   return (
@@ -45,7 +46,16 @@ export const ProcessPage = (): React.JSX.Element => {
         {workspace?.runs.length ? <Alert className="section-alert" type="info" showIcon message={`已保留 ${workspace.runs.length} 次历史运行；重新分类会创建新 Run，不覆盖旧结果。`} /> : null}
         <Button type="primary" loading={running} onClick={() => void run()}>{workspace?.runs.length ? '新建一次 AI 分类运行' : '开始 AI 分类'}</Button>
       </Card>
-      {!preparation.ocrApplied && preparation.pagesNeedingOcr.length > 0 ? <Alert className="section-alert" type="warning" showIcon message="检测到扫描页但尚未完成 OCR；请检查 OCR API Key 后重新导入，或继续由 Agent 基于可提取文本处理。" /> : null}
+      {!preparation.ocrApplied && preparation.pagesNeedingOcr.length > 0 ? (
+        <Alert
+          className="section-alert"
+          type="warning"
+          showIcon
+          message={ocrMode === 'local'
+            ? '本地模式检测到文本不足页；系统不会调用云端，请先核对这些页面或切换 OCR 模式后重新导入。'
+            : '检测到文本不足页且云端 OCR 未产出可用结果；请检查 OCR Key、网络或页面内容后重新导入。'}
+        />
+      ) : null}
       {preparation.textReport?.quality === 'low' ? <Alert className="section-alert" type="error" showIcon message="OCR 文本质量异常：分类仍可继续，但结果会降级为需复核。请先回到资料页核对需复核页。" /> : null}
       <Collapse className="academic-card" items={[{ key: 'events', label: '本次运行详细记录', children: <List size="small" dataSource={projectEvents} locale={{ emptyText: '等待开始' }} renderItem={(event) => <List.Item><Tag>{event.phase}</Tag>{event.detail}</List.Item>} /> }]} />
     </section>

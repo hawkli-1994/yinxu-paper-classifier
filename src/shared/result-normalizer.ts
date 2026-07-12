@@ -10,7 +10,7 @@ import {
   type ValidationIssue
 } from './contracts';
 import { getCategoryPath, isValidLeafCategory } from './taxonomy';
-import { calculateConfidence, validatePaperResult } from './validation';
+import { calculateConfidence, findUniqueEvidencePage, validatePaperResult } from './validation';
 
 export class PaperResultValidationError extends Error {
   constructor(public readonly issues: ValidationIssue[]) {
@@ -28,6 +28,13 @@ export interface NormalizeResultContext {
 
 const visualFields = new Set<PaperFieldName>(PAPER_FIELD_NAMES.slice(12, 24));
 
+const correctEvidencePage = <T extends { page: number; quote: string }>(evidence: T, pages: readonly PageText[]): T => {
+  const citedPage = pages.find((page) => page.page === evidence.page);
+  if (citedPage && findUniqueEvidencePage(evidence.quote, [citedPage]) !== undefined) return evidence;
+  const uniquePage = findUniqueEvidencePage(evidence.quote, pages);
+  return uniquePage === undefined ? evidence : { ...evidence, page: uniquePage };
+};
+
 export const normalizePaperResult = (
   draft: AgentPaperDraft,
   pages: readonly PageText[],
@@ -44,6 +51,9 @@ export const normalizePaperResult = (
   fields.文件路径 = 'source/original.pdf';
 
   const fieldAssessments = structuredClone(draft.fieldAssessments);
+  for (const assessment of Object.values(fieldAssessments)) {
+    assessment.evidence = assessment.evidence.map((evidence) => correctEvidencePage(evidence, pages));
+  }
   for (const name of visualFields) {
     if (!context.reviewed && fieldAssessments[name].evidence.length === 0) {
       fields[name] = '';
@@ -94,6 +104,7 @@ export const normalizePaperResult = (
 
   const provisional: PaperResult = {
     ...draft,
+    evidence: draft.evidence.map((evidence) => correctEvidencePage(evidence, pages)),
     fields,
     fieldAssessments,
     crossReferenceCategoryCodes,

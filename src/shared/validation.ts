@@ -6,7 +6,18 @@ export interface ConfidenceResult {
   band: ConfidenceBand;
 }
 
-const normalizeEvidence = (value: string): string => value.replace(/[\s\u3000]+/g, '').replace(/[，。；：、“”‘’]/g, '');
+const normalizeEvidence = (value: string): string =>
+  value
+    .normalize('NFKC')
+    .toLocaleLowerCase()
+    .replace(/[\p{Separator}\p{Punctuation}\p{Symbol}\p{Control}\p{Format}]+/gu, '');
+
+export const findUniqueEvidencePage = (quote: string, pages: readonly PageText[]): number | undefined => {
+  const normalizedQuote = normalizeEvidence(quote);
+  if (!normalizedQuote) return undefined;
+  const matches = pages.filter((page) => normalizeEvidence(page.text).includes(normalizedQuote));
+  return matches.length === 1 ? matches[0]?.page : undefined;
+};
 
 const hasAmbiguousCandidates = (result: PaperResult): boolean => {
   const [first, second] = result.candidates;
@@ -50,7 +61,7 @@ export const validatePaperResult = (result: PaperResult, pages: readonly PageTex
 
   for (const evidence of result.evidence) {
     const page = pages.find((candidate) => candidate.page === evidence.page);
-    if (!page || !normalizeEvidence(page.text).includes(normalizeEvidence(evidence.quote))) {
+    if (!page || findUniqueEvidencePage(evidence.quote, [page]) === undefined) {
       issues.push({ code: 'UNVERIFIABLE_EVIDENCE', message: `第 ${evidence.page} 页证据无法在提取文本中核对。` });
     }
   }
@@ -58,7 +69,7 @@ export const validatePaperResult = (result: PaperResult, pages: readonly PageTex
   for (const [field, assessment] of Object.entries(result.fieldAssessments)) {
     for (const evidence of assessment.evidence) {
       const page = pages.find((candidate) => candidate.page === evidence.page);
-      if (!page || !normalizeEvidence(page.text).includes(normalizeEvidence(evidence.quote))) {
+      if (!page || findUniqueEvidencePage(evidence.quote, [page]) === undefined) {
         issues.push({ code: 'UNVERIFIABLE_FIELD_EVIDENCE', message: `${field}字段的第 ${evidence.page} 页证据无法核对。` });
       }
     }
@@ -79,10 +90,14 @@ export const calculateConfidence = (result: PaperResult, issues: readonly Valida
   let score = 100;
   if (result.ocrQuality === 'low') score -= 25;
   if (result.evidence.length === 0) score -= 30;
+  else if (result.evidence.length < 2) score -= 20;
   if (issues.some((issue) => issue.code === 'UNVERIFIABLE_EVIDENCE')) score -= 30;
+  const unverifiableFieldEvidenceCount = issues.filter((issue) => issue.code === 'UNVERIFIABLE_FIELD_EVIDENCE').length;
+  score -= Math.min(unverifiableFieldEvidenceCount * 5, 20);
   if (hasAmbiguousCandidates(result)) score -= 15;
   if (result.ruleConflicts.length > 0) score -= 25;
   if (issues.some((issue) => issue.code === 'INVALID_CANDIDATE' || issue.code === 'PRIMARY_NOT_CANDIDATE')) score -= 25;
+  if (issues.some((issue) => issue.code === 'INVALID_CROSS_REFERENCE' || issue.code === 'TOO_MANY_CROSS_REFERENCES')) score -= 15;
   const lowKeyAssessments = ['作者', '题名', '出处', '文献类型', '核心材料载体']
     .filter((name) => result.fieldAssessments[name as keyof typeof result.fieldAssessments].score < 0.6).length;
   score -= Math.min(lowKeyAssessments * 5, 20);

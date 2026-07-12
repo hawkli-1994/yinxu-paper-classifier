@@ -22,6 +22,7 @@
     "ajv": "latest",
     "antd": "latest",
     "exceljs": "latest",
+    "mupdf": "^1.28.0",
     "pdfjs-dist": "latest",
     "react": "latest",
     "react-dom": "latest",

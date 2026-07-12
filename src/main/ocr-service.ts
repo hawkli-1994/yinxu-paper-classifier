@@ -1,5 +1,5 @@
-import type { PageText } from '../shared/contracts';
-import { extractSinglePagePdf, renderPdfPageToPng } from './pdf-service';
+import type { OcrMode, PageText } from '../shared/contracts';
+import { buildTextPreparationReport, extractSinglePagePdf, renderPdfPageToPng } from './pdf-service';
 
 export class RetryableOcrError extends Error {}
 
@@ -78,7 +78,8 @@ export const ocrPagesIndividually = async (
   pages: readonly PageText[],
   pagesNeedingOcr: readonly number[],
   config: OcrConfig,
-  recognize: OcrRecognizer = ocrPdf
+  recognize: OcrRecognizer = ocrPdf,
+  mergeOriginal = true
 ): Promise<PageText[]> => {
   const replacements = new Map<number, PageText>();
   for (const pageNumber of pagesNeedingOcr) {
@@ -87,9 +88,82 @@ export const ocrPagesIndividually = async (
     const original = pages.find((page) => page.page === pageNumber);
     replacements.set(pageNumber, {
       page: pageNumber,
-      text: original?.text.trim() ? `${original.text.trim()}\n${text}`.trim() : text,
-      source: original?.text.trim() ? 'mixed' : 'ocr'
+      text: mergeOriginal && original?.text.trim() ? `${original.text.trim()}\n${text}`.trim() : text,
+      source: mergeOriginal && original?.text.trim() ? 'mixed' : 'ocr'
     });
   }
   return pages.map((page) => replacements.get(page.page) ?? page);
+};
+
+export interface OcrModeProcessingInput {
+  mode: OcrMode;
+  pdfBytes: Uint8Array;
+  pages: readonly PageText[];
+  pagesNeedingOcr: readonly number[];
+  config?: OcrConfig;
+}
+
+export interface OcrModeProcessingResult {
+  pages: PageText[];
+  cloudAttemptedPages: number[];
+  cloudAppliedPages: number[];
+  localFallbackPages: number[];
+}
+
+/** Applies the user's OCR choice as a hard execution policy. */
+export const processPagesWithOcrMode = async (
+  input: OcrModeProcessingInput,
+  recognize: OcrRecognizer = ocrPdf
+): Promise<OcrModeProcessingResult> => {
+  if (input.mode === 'local') {
+    return {
+      pages: [...input.pages],
+      cloudAttemptedPages: [],
+      cloudAppliedPages: [],
+      localFallbackPages: [...input.pagesNeedingOcr]
+    };
+  }
+
+  if (input.mode === 'cloud') {
+    if (!input.config?.apiKey) throw new Error('云端 OCR 模式必须先配置 OCR API Key。');
+    const pageNumbers = input.pages.map((page) => page.page);
+    const pages = await ocrPagesIndividually(input.pdfBytes, input.pages, pageNumbers, input.config, recognize, false);
+    return {
+      pages,
+      cloudAttemptedPages: pageNumbers,
+      cloudAppliedPages: pageNumbers,
+      localFallbackPages: []
+    };
+  }
+
+  if (!input.config?.apiKey || input.pagesNeedingOcr.length === 0) {
+    return {
+      pages: [...input.pages],
+      cloudAttemptedPages: [],
+      cloudAppliedPages: [],
+      localFallbackPages: [...input.pagesNeedingOcr]
+    };
+  }
+
+  let pages = [...input.pages];
+  const cloudAttemptedPages: number[] = [];
+  const cloudAppliedPages: number[] = [];
+  const localFallbackPages: number[] = [];
+  for (const pageNumber of input.pagesNeedingOcr) {
+    cloudAttemptedPages.push(pageNumber);
+    try {
+      const candidatePages = await ocrPagesIndividually(input.pdfBytes, pages, [pageNumber], input.config, recognize, false);
+      const pageReport = buildTextPreparationReport(candidatePages, [pageNumber]).pages.find((page) => page.page === pageNumber);
+      if (!pageReport || pageReport.needsReview) {
+        localFallbackPages.push(pageNumber);
+        continue;
+      }
+      pages = candidatePages;
+      cloudAppliedPages.push(pageNumber);
+    } catch {
+      localFallbackPages.push(pageNumber);
+    }
+  }
+
+  return { pages, cloudAttemptedPages, cloudAppliedPages, localFallbackPages };
 };

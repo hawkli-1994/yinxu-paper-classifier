@@ -272,6 +272,7 @@ const readPreparation = async (project: ProjectRecord): Promise<ProjectPreparati
   return {
     project,
     pageCount: report?.pageCount ?? 0,
+    ocrMode: report?.ocrMode,
     pagesNeedingOcr: report?.pages.filter((page) => page.needsReview).map((page) => page.page) ?? [],
     ocrApplied: Boolean(report?.ocrAppliedPages.length),
     textReport: report

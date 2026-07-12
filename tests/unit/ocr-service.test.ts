@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
 import { inspectPdfBytes } from '../../src/main/pdf-service';
-import { getOcrInputMediaType, ocrPagesIndividually, ocrPdf, RetryableOcrError, retry } from '../../src/main/ocr-service';
+import { getOcrInputMediaType, ocrPagesIndividually, ocrPdf, processPagesWithOcrMode, RetryableOcrError, retry } from '../../src/main/ocr-service';
 
 describe('OCR retry', () => {
   it('uses PNG input for PaddleOCR-VL-1.5 and preserves PDF input for DeepSeek-OCR', () => {
@@ -83,5 +83,75 @@ describe('OCR retry', () => {
     }
 
     expect(imageUrl).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it('treats local mode as a hard no-cloud policy', async () => {
+    let calls = 0;
+    const result = await processPagesWithOcrMode({
+      mode: 'local',
+      pdfBytes: new Uint8Array(),
+      pages: [{ page: 1, text: '', source: 'embedded' }],
+      pagesNeedingOcr: [1]
+    }, async () => {
+      calls += 1;
+      return '不应调用';
+    });
+
+    expect(calls).toBe(0);
+    expect(result.cloudAttemptedPages).toEqual([]);
+    expect(result.localFallbackPages).toEqual([1]);
+  });
+
+  it('requires cloud mode to OCR every page without local fallback', async () => {
+    const document = await PDFDocument.create();
+    document.addPage();
+    document.addPage();
+    const calls: number[] = [];
+    const result = await processPagesWithOcrMode({
+      mode: 'cloud',
+      pdfBytes: await document.save(),
+      pages: [
+        { page: 1, text: '本地第一页', source: 'embedded' },
+        { page: 2, text: '本地第二页', source: 'embedded' }
+      ],
+      pagesNeedingOcr: [],
+      config: { baseUrl: 'https://example.com/v1', apiKey: 'key', model: 'ocr' }
+    }, async () => {
+      calls.push(calls.length + 1);
+      return `云端识别第${calls.length + 1}页${'甲'.repeat(60)}`;
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(result.cloudAttemptedPages).toEqual([1, 2]);
+    expect(result.cloudAppliedPages).toEqual([1, 2]);
+    expect(result.localFallbackPages).toEqual([]);
+    expect(result.pages.every((page) => page.source === 'ocr')).toBe(true);
+    await expect(processPagesWithOcrMode({
+      mode: 'cloud',
+      pdfBytes: await document.save(),
+      pages: [{ page: 1, text: '', source: 'embedded' }],
+      pagesNeedingOcr: [1]
+    })).rejects.toThrow('必须先配置 OCR API Key');
+  });
+
+  it('uses cloud first in auto mode and falls back when the response has model artifacts', async () => {
+    const document = await PDFDocument.create();
+    document.addPage();
+    const input = {
+      mode: 'auto' as const,
+      pdfBytes: await document.save(),
+      pages: [{ page: 1, text: '本地残留文字', source: 'embedded' as const }],
+      pagesNeedingOcr: [1],
+      config: { baseUrl: 'https://example.com/v1', apiKey: 'key', model: 'ocr' }
+    };
+    const accepted = await processPagesWithOcrMode(input, async () => `殷墟祭祀卜辞研究${'甲'.repeat(60)}`);
+    const rejected = await processPagesWithOcrMode(input, async () => `<|LOC_1_2|>${'乱码'.repeat(50)}`);
+
+    expect(accepted.cloudAppliedPages).toEqual([1]);
+    expect(accepted.localFallbackPages).toEqual([]);
+    expect(rejected.cloudAttemptedPages).toEqual([1]);
+    expect(rejected.cloudAppliedPages).toEqual([]);
+    expect(rejected.localFallbackPages).toEqual([1]);
+    expect(rejected.pages[0]?.text).toBe('本地残留文字');
   });
 });

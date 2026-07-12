@@ -35,6 +35,7 @@ export type PaperFieldName = (typeof PAPER_FIELD_NAMES)[number];
 export type PaperFields = Record<PaperFieldName, string>;
 export type ConfidenceBand = 'green' | 'yellow' | 'red';
 export type OcrQuality = 'high' | 'low' | 'unknown';
+export type OcrMode = 'auto' | 'local' | 'cloud';
 export type ReviewStatus = 'needs_review' | 'confirmed';
 
 export interface Evidence {
@@ -195,12 +196,15 @@ export interface TextPreparationPageReport {
   source: 'embedded' | 'ocr' | 'mixed';
   characterCount: number;
   needsReview: boolean;
-  qualityFlags: Array<'too_short' | 'language_mismatch'>;
+  qualityFlags: Array<'too_short' | 'language_mismatch' | 'model_artifact'>;
 }
 
 export interface TextPreparationReport {
   pageCount: number;
+  ocrMode?: OcrMode;
   ocrAppliedPages: number[];
+  cloudAttemptedPages?: number[];
+  localFallbackPages?: number[];
   emptyPages: number[];
   quality: OcrQuality;
   pages: TextPreparationPageReport[];
@@ -364,6 +368,7 @@ export interface AppSettings {
     baseUrl?: string;
   };
   ocr: {
+    mode: OcrMode;
     baseUrl: string;
     model: string;
   };
@@ -386,6 +391,7 @@ export interface SettingsView extends AppSettings {
 export interface ProjectPreparation {
   project: ProjectRecord;
   pageCount: number;
+  ocrMode?: OcrMode;
   pagesNeedingOcr: number[];
   ocrApplied: boolean;
   textReport?: TextPreparationReport;
