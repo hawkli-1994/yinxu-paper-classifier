@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell, type WebContents } from 'electron';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import type { AppSettings, KnowledgePackage, PaperResult, ProjectPreparation, ProjectRecord, ReviewFeedbackInput, RunEvent, SettingsInput, SettingsView } from '../shared/contracts';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, extname, join } from 'node:path';
+import type { AppSettings, CreateProjectInput, KnowledgePackage, LocalFileSelection, PaperResult, ProjectPreparation, ProjectRecord, ProjectWorkspace, ReviewFeedbackInput, RunEvent, SettingsInput, SettingsView, SupplementalFileInput, SupplementalNoteInput } from '../shared/contracts';
 import { getAgentCredentialKey, getProviderPreset } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
 import { paperResultToDraft, summarizeReviewChanges } from '../shared/review-model';
@@ -11,7 +11,21 @@ import { exportWorkbook } from './export-service';
 import { getProjectDirectory } from './paths';
 import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pdf-service';
 import { ocrPagesIndividually } from './ocr-service';
-import { createProject, readProject, saveFinalResult, updateProjectMetadata, updateProjectStatus } from './project-service';
+import {
+  activateResultRevision,
+  completeClassificationRun,
+  createClassificationRun,
+  createProject,
+  failClassificationRun,
+  listProjectSummaries,
+  loadProjectWorkspace,
+  markProjectMaterialsUpdated,
+  readProject,
+  readResultRevision,
+  saveFinalResult,
+  saveReviewRevision,
+  updateProjectMetadata
+} from './project-service';
 import { loadSettings, saveSettings } from './settings-service';
 import {
   approveCandidateRule,
@@ -26,13 +40,27 @@ import {
   rollbackPersonalRule,
   updatePersonalRule
 } from './memory-service';
+import { activeSupplementalMaterials, addSupplementalFiles, addSupplementalNote, listSupplementalMaterials, removeSupplementalMaterial } from './supplement-service';
+import { acquireClassificationLock, getActiveClassification } from './classification-lock';
 
 const getResult = async (project: ProjectRecord): Promise<PaperResult> => {
+  if (project.activeRevisionId) return readResultRevision(project, project.activeRevisionId);
   try {
     return JSON.parse(await readFile(join(project.rootPath, 'result', 'final-result.json'), 'utf8')) as PaperResult;
   } catch {
     return JSON.parse(await readFile(join(project.rootPath, 'result', 'agent-result.json'), 'utf8')) as PaperResult;
   }
+};
+
+const toFileSelection = async (path: string): Promise<LocalFileSelection> => ({
+  path,
+  name: basename(path),
+  extension: extname(path).toLocaleLowerCase(),
+  size: (await stat(path)).size
+});
+
+const assertProjectNotClassifying = (projectId: string): void => {
+  if (getActiveClassification()?.projectId === projectId) throw new Error('当前项目正在分类，请等待本次运行结束后再修改材料、复核或切换版本。');
 };
 
 const readPreparedPages = async (project: ProjectRecord): Promise<Array<{ page: number; text: string; source?: 'embedded' | 'ocr' | 'mixed' }>> =>
@@ -95,7 +123,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     return toSettingsView(appRoot, settings);
   });
 
-  ipcMain.handle('project:select-and-create', async (): Promise<ProjectPreparation | undefined> => {
+  ipcMain.handle('project:select-primary', async (): Promise<LocalFileSelection | undefined> => {
     const selection = await dialog.showOpenDialog({
       title: '选择殷墟研究论文 PDF',
       properties: ['openFile'],
@@ -103,9 +131,31 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     });
     const sourcePath = selection.filePaths[0];
     if (selection.canceled || !sourcePath) return undefined;
-    const project = await createProject(sourcePath, appRoot, knowledgePackage.version);
-    return prepareProject(appRoot, project, await loadSettings(appRoot));
+    return toFileSelection(sourcePath);
   });
+
+  ipcMain.handle('project:select-supplements', async (): Promise<LocalFileSelection[]> => {
+    const selection = await dialog.showOpenDialog({
+      title: '选择补充材料',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '补充材料', extensions: ['pdf', 'txt', 'md'] }]
+    });
+    if (selection.canceled) return [];
+    return Promise.all(selection.filePaths.map(toFileSelection));
+  });
+
+  ipcMain.handle('project:create', async (_event, input: CreateProjectInput): Promise<ProjectWorkspace> => {
+    if (extname(input.sourcePdfPath).toLocaleLowerCase() !== '.pdf') throw new Error('主论文必须是 PDF。');
+    let project = await createProject(input.sourcePdfPath, appRoot, knowledgePackage.version);
+    const preparation = await prepareProject(appRoot, project, await loadSettings(appRoot));
+    project = preparation.project;
+    if (input.supplementalFiles.length) await addSupplementalFiles(project, input.supplementalFiles);
+    for (const note of input.supplementalNotes) await addSupplementalNote(project, note);
+    return loadProjectWorkspace(appRoot, project.id);
+  });
+
+  ipcMain.handle('project:list', async () => listProjectSummaries(appRoot));
+  ipcMain.handle('project:open', async (_event, projectId: string): Promise<ProjectWorkspace> => loadProjectWorkspace(appRoot, projectId));
 
   ipcMain.handle('project:get', async (_event, projectId: string): Promise<ProjectRecord> => readProject(getProjectDirectory(appRoot, projectId)));
 
@@ -114,24 +164,58 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     return new Uint8Array(await readFile(project.sourcePdfPath));
   });
 
-  ipcMain.handle('classification:run', async (event, projectId: string): Promise<PaperResult> => {
+  ipcMain.handle('project:add-supplement-files', async (_event, projectId: string, files: SupplementalFileInput[]): Promise<ProjectWorkspace> => {
+    assertProjectNotClassifying(projectId);
     let project = await readProject(getProjectDirectory(appRoot, projectId));
-    project = await updateProjectStatus(project, 'processing');
+    await addSupplementalFiles(project, files);
+    project = await markProjectMaterialsUpdated(project);
+    return loadProjectWorkspace(appRoot, project.id);
+  });
+
+  ipcMain.handle('project:add-supplement-note', async (_event, projectId: string, note: SupplementalNoteInput): Promise<ProjectWorkspace> => {
+    assertProjectNotClassifying(projectId);
+    let project = await readProject(getProjectDirectory(appRoot, projectId));
+    await addSupplementalNote(project, note);
+    project = await markProjectMaterialsUpdated(project);
+    return loadProjectWorkspace(appRoot, project.id);
+  });
+
+  ipcMain.handle('project:remove-supplement', async (_event, projectId: string, materialId: string): Promise<ProjectWorkspace> => {
+    assertProjectNotClassifying(projectId);
+    let project = await readProject(getProjectDirectory(appRoot, projectId));
+    await removeSupplementalMaterial(project, materialId);
+    project = await markProjectMaterialsUpdated(project);
+    return loadProjectWorkspace(appRoot, project.id);
+  });
+
+  ipcMain.handle('classification:run', async (event, projectId: string): Promise<ProjectWorkspace> => {
+    let project = await readProject(getProjectDirectory(appRoot, projectId));
     const settings = await loadSettings(appRoot);
     const vault = createElectronCredentialVault(appRoot);
     const apiKey = settings.agent.provider ? await vault.get(getAgentCredentialKey(settings.agent)) : undefined;
     if (!settings.agent.provider || !settings.agent.modelId || !apiKey) throw new Error('请先在设置中完成 Agent Provider、模型和 API Key 配置。');
-    project = await updateProjectMetadata(project, {
-      agentProvider: settings.agent.provider,
-      agentModel: settings.agent.modelId,
-      thinkingLevel: settings.agent.thinkingLevel,
-      ocrModel: settings.ocr.model,
-      knowledgeVersion: knowledgePackage.version
-    });
+    const releaseClassificationLock = acquireClassificationLock(projectId, 'pending');
     const webContents: WebContents = event.sender;
-    const send = (runEvent: Omit<RunEvent, 'projectId'>): void => webContents.send('classification:event', { projectId, ...runEvent } satisfies RunEvent);
+    let created: Awaited<ReturnType<typeof createClassificationRun>> | undefined;
 
     try {
+      project = await updateProjectMetadata(project, {
+        agentProvider: settings.agent.provider,
+        agentModel: settings.agent.modelId,
+        thinkingLevel: settings.agent.thinkingLevel,
+        ocrModel: settings.ocr.model,
+        knowledgeVersion: knowledgePackage.version
+      });
+      const supplements = activeSupplementalMaterials(await listSupplementalMaterials(project));
+      created = await createClassificationRun(project, {
+        agentProvider: settings.agent.provider,
+        agentModel: settings.agent.modelId,
+        thinkingLevel: settings.agent.thinkingLevel,
+        knowledgeVersion: knowledgePackage.version,
+        ocrModel: settings.ocr.model
+      }, supplements);
+      project = created.project;
+      const send = (runEvent: Omit<RunEvent, 'projectId' | 'runId'>): void => webContents.send('classification:event', { projectId, runId: created!.run.id, ...runEvent } satisfies RunEvent);
       const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
       const memoryContext = await retrieveMemoryContext(appRoot, paperText, settings.memory);
       const result = await createAgentRun(project, knowledgePackage.path, {
@@ -141,19 +225,27 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         baseUrl: settings.agent.baseUrl,
         runtimeApiKey: apiKey,
         agentDirectory: join(appRoot, 'agent'),
-        memoryContext
+        memoryContext,
+        sessionDirectory: created.run.sessionPath,
+        supplementContextPath: created.run.supplementContextPath!
       }, send);
-      await updateProjectStatus(project, 'review_required');
-      return result;
+      project = await completeClassificationRun(project, created.run, created.runDirectory, result);
+      return loadProjectWorkspace(appRoot, project.id);
     } catch (error) {
-      await updateProjectStatus(project, 'failed');
-      send({ phase: 'failed', detail: error instanceof Error ? error.message : '分类失败。' });
+      const detail = error instanceof Error ? error.message : '分类失败。';
+      if (created) {
+        await failClassificationRun(project, created.run, created.runDirectory, detail);
+        webContents.send('classification:event', { projectId, runId: created.run.id, phase: 'failed', detail } satisfies RunEvent);
+      }
       throw error;
+    } finally {
+      releaseClassificationLock();
     }
   });
 
-  ipcMain.handle('review:save', async (_event, projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<PaperResult> => {
-    const project = await readProject(getProjectDirectory(appRoot, projectId));
+  ipcMain.handle('review:save', async (_event, projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<ProjectWorkspace> => {
+    assertProjectNotClassifying(projectId);
+    let project = await readProject(getProjectDirectory(appRoot, projectId));
     const before = await getResult(project);
     const textReport = JSON.parse(await readFile(join(project.rootPath, 'extracted', 'report.json'), 'utf8')) as { quality: PaperResult['ocrQuality'] };
     const reviewHistory = [
@@ -168,8 +260,15 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     });
     await saveFinalResult(project, normalized);
     await recordReviewFeedback(appRoot, project, before, normalized, feedback ?? { errorTypes: [], reason: '', rememberAsCandidate: false });
-    await updateProjectStatus(project, 'confirmed');
-    return normalized;
+    project = await saveReviewRevision(project, normalized, summarizeReviewChanges(before, normalized));
+    return loadProjectWorkspace(appRoot, project.id);
+  });
+
+  ipcMain.handle('project:activate-revision', async (_event, projectId: string, revisionId: string): Promise<ProjectWorkspace> => {
+    assertProjectNotClassifying(projectId);
+    let project = await readProject(getProjectDirectory(appRoot, projectId));
+    project = await activateResultRevision(project, revisionId);
+    return loadProjectWorkspace(appRoot, project.id);
   });
 
   ipcMain.handle('workbook:export', async (_event, projectId: string): Promise<string> => {

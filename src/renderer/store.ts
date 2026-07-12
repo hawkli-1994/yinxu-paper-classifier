@@ -1,30 +1,60 @@
 import { create } from 'zustand';
-import type { PaperResult, ProjectPreparation, ProjectRecord, RunEvent, SettingsView } from '../shared/contracts';
+import type { PaperResult, ProjectPreparation, ProjectRecord, ProjectSummary, ProjectWorkspace, RunEvent, SettingsView } from '../shared/contracts';
 
-export type PageKey = 'settings' | 'import' | 'process' | 'review' | 'memory';
+export type GlobalPage = 'settings' | 'memory';
+export type WorkspaceTab = 'materials' | 'classification' | 'review' | 'history';
 
 export interface AppState {
-  activePage: PageKey;
   settings?: SettingsView;
+  projects: ProjectSummary[];
+  workspace?: ProjectWorkspace;
   project?: ProjectRecord;
   preparation?: ProjectPreparation;
   result?: PaperResult;
+  globalPage?: GlobalPage;
+  workspaceTab: WorkspaceTab;
   runEvents: RunEvent[];
-  setActivePage(page: PageKey): void;
   setSettings(settings: SettingsView): void;
-  setPreparation(preparation: ProjectPreparation): void;
+  setProjects(projects: ProjectSummary[]): void;
+  refreshProjects(): Promise<ProjectSummary[]>;
+  openProject(projectId: string): Promise<ProjectWorkspace>;
+  setWorkspace(workspace: ProjectWorkspace): void;
   setResult(result: PaperResult): void;
+  setGlobalPage(page?: GlobalPage): void;
+  setWorkspaceTab(tab: WorkspaceTab): void;
   appendRunEvent(event: RunEvent): void;
 }
 
+const workspaceState = (workspace: ProjectWorkspace) => ({
+  workspace,
+  project: workspace.project,
+  preparation: workspace.preparation,
+  result: workspace.result,
+  globalPage: undefined,
+  runEvents: []
+});
+
 export const useAppStore = create<AppState>((set) => ({
-  activePage: 'settings',
+  projects: [],
+  workspaceTab: 'materials',
   runEvents: [],
-  setActivePage: (activePage) => set({ activePage }),
   setSettings: (settings) => set({ settings }),
-  setPreparation: (preparation) => set({ preparation, project: preparation.project, runEvents: [] }),
-  setResult: (result) => set({ result }),
-  appendRunEvent: (event) => set((state) => ({ runEvents: [...state.runEvents, event] }))
+  setProjects: (projects) => set({ projects }),
+  refreshProjects: async () => {
+    const projects = await window.yinxu.listProjects();
+    set({ projects });
+    return projects;
+  },
+  openProject: async (projectId) => {
+    const workspace = await window.yinxu.openProject(projectId);
+    set(workspaceState(workspace));
+    return workspace;
+  },
+  setWorkspace: (workspace) => set(workspaceState(workspace)),
+  setResult: (result) => set((state) => ({ result, workspace: state.workspace ? { ...state.workspace, result } : state.workspace })),
+  setGlobalPage: (globalPage) => set({ globalPage }),
+  setWorkspaceTab: (workspaceTab) => set({ workspaceTab, globalPage: undefined }),
+  appendRunEvent: (event) => set((state) => ({ runEvents: [...state.runEvents.filter((item) => item.projectId === event.projectId), event] }))
 }));
 
 if (import.meta.env.DEV && typeof window !== 'undefined') {

@@ -231,9 +231,86 @@ export interface ValidationIssue {
   message: string;
 }
 
-export type ProjectStatus = 'imported' | 'processing' | 'review_required' | 'confirmed' | 'failed';
+export type ProjectStatus = 'imported' | 'materials_updated' | 'processing' | 'review_required' | 'confirmed' | 'failed';
+
+export type SupplementKind = 'author_metadata' | 'bibliography' | 'expert_note' | 'appendix' | 'other';
+export type SupplementStatus = 'ready' | 'needs_review' | 'failed';
+
+export interface LocalFileSelection {
+  path: string;
+  name: string;
+  extension: string;
+  size: number;
+}
+
+export interface SupplementalFileInput {
+  path: string;
+  kind: SupplementKind;
+  sourceLabel?: string;
+}
+
+export interface SupplementalNoteInput {
+  title: string;
+  content: string;
+  kind: SupplementKind;
+  sourceLabel?: string;
+}
+
+export interface SupplementalMaterialRecord {
+  id: string;
+  kind: SupplementKind;
+  sourceType: 'file' | 'note';
+  title: string;
+  sourceLabel: string;
+  originalFileName?: string;
+  storedPath: string;
+  extractedTextPath: string;
+  sha256: string;
+  size: number;
+  status: SupplementStatus;
+  statusDetail?: string;
+  createdAt: string;
+  removedAt?: string;
+}
+
+export interface CreateProjectInput {
+  sourcePdfPath: string;
+  supplementalFiles: SupplementalFileInput[];
+  supplementalNotes: SupplementalNoteInput[];
+}
+
+export interface ClassificationRunRecord {
+  id: string;
+  projectId: string;
+  status: 'running' | 'completed' | 'failed';
+  startedAt: string;
+  completedAt?: string;
+  agentProvider: string;
+  agentModel: string;
+  thinkingLevel: ThinkingLevel;
+  knowledgeVersion: string;
+  ocrModel: string;
+  supplementIds: string[];
+  supplementHashes: string[];
+  supplementContextPath?: string;
+  sessionPath: string;
+  resultRevisionId?: string;
+  error?: string;
+}
+
+export interface ResultRevisionRecord {
+  id: string;
+  projectId: string;
+  runId: string;
+  kind: 'agent' | 'review';
+  parentRevisionId?: string;
+  resultPath: string;
+  summary: string;
+  createdAt: string;
+}
 
 export interface ProjectRecord {
+  schemaVersion?: 1 | 2;
   id: string;
   rootPath: string;
   sourcePdfPath: string;
@@ -247,6 +324,29 @@ export interface ProjectRecord {
   agentModel?: string;
   thinkingLevel?: ThinkingLevel;
   ocrModel?: string;
+  activeRunId?: string;
+  activeRevisionId?: string;
+  archivedAt?: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  sourceFileName: string;
+  title: string;
+  author: string;
+  status: ProjectStatus;
+  updatedAt: string;
+  supplementCount: number;
+  runCount: number;
+}
+
+export interface ProjectWorkspace {
+  project: ProjectRecord;
+  preparation: ProjectPreparation;
+  supplements: SupplementalMaterialRecord[];
+  runs: ClassificationRunRecord[];
+  revisions: ResultRevisionRecord[];
+  result?: PaperResult;
 }
 
 export interface KnowledgePackage {
@@ -293,6 +393,7 @@ export interface ProjectPreparation {
 
 export interface RunEvent {
   projectId: string;
+  runId?: string;
   phase: 'started' | 'agent' | 'validated' | 'failed';
   detail: string;
 }
@@ -302,11 +403,19 @@ export interface DesktopApi {
   saveSettings(input: SettingsInput): Promise<SettingsView>;
   openProviderApiKeyPage(provider: string): Promise<void>;
   openOcrSignupPage(): Promise<void>;
-  selectAndCreateProject(): Promise<ProjectPreparation | undefined>;
+  selectPrimaryPaper(): Promise<LocalFileSelection | undefined>;
+  selectSupplementalFiles(): Promise<LocalFileSelection[]>;
+  createProject(input: CreateProjectInput): Promise<ProjectWorkspace>;
+  listProjects(): Promise<ProjectSummary[]>;
+  openProject(projectId: string): Promise<ProjectWorkspace>;
   getProject(projectId: string): Promise<ProjectRecord>;
   getSourcePdf(projectId: string): Promise<Uint8Array>;
-  runClassification(projectId: string): Promise<PaperResult>;
-  saveReview(projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<PaperResult>;
+  addSupplementalFiles(projectId: string, files: SupplementalFileInput[]): Promise<ProjectWorkspace>;
+  addSupplementalNote(projectId: string, note: SupplementalNoteInput): Promise<ProjectWorkspace>;
+  removeSupplementalMaterial(projectId: string, materialId: string): Promise<ProjectWorkspace>;
+  runClassification(projectId: string): Promise<ProjectWorkspace>;
+  saveReview(projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<ProjectWorkspace>;
+  activateResultRevision(projectId: string, revisionId: string): Promise<ProjectWorkspace>;
   exportWorkbook(projectId: string): Promise<string>;
   getMemorySnapshot(): Promise<MemorySnapshot>;
   createPersonalRule(input: PersonalRuleInput): Promise<MemorySnapshot>;

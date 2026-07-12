@@ -18,6 +18,8 @@ export const ReviewPage = (): React.JSX.Element => {
   const result = useAppStore((state) => state.result);
   const project = useAppStore((state) => state.project);
   const setResult = useAppStore((state) => state.setResult);
+  const setWorkspace = useAppStore((state) => state.setWorkspace);
+  const refreshProjects = useAppStore((state) => state.refreshProjects);
   const [saving, setSaving] = useState(false);
   const [selectedEvidenceIndex, setSelectedEvidenceIndex] = useState(0);
   const [feedback, setFeedback] = useState<ReviewFeedbackInput>({ errorTypes: [], reason: '', rememberAsCandidate: false });
@@ -37,8 +39,10 @@ export const ReviewPage = (): React.JSX.Element => {
   const save = async (): Promise<void> => {
     setSaving(true);
     try {
-      const normalized = await window.yinxu.saveReview(project.id, result, feedback);
-      setResult(normalized);
+      const workspace = await window.yinxu.saveReview(project.id, result, feedback);
+      setWorkspace(workspace);
+      if (workspace.result) setResult(workspace.result);
+      await refreshProjects();
       setFeedback({ errorTypes: [], reason: '', rememberAsCandidate: false });
       message.success(
         isAuthorMetadataOnlyFeedback(feedback)
