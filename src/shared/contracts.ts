@@ -73,6 +73,114 @@ export interface ReviewHistoryEntry {
   summary: string;
 }
 
+export const FEEDBACK_ERROR_TYPES = [
+  '主分类错误',
+  '互见分类错误',
+  '标签定义不准确',
+  '史实或年代错误',
+  '类别重叠',
+  '缺少合适类别',
+  '证据不足',
+  '术语不规范',
+  '字段提取错误'
+] as const;
+
+export type FeedbackErrorType = (typeof FEEDBACK_ERROR_TYPES)[number];
+
+export interface ReviewFeedbackInput {
+  errorTypes: FeedbackErrorType[];
+  reason: string;
+  rememberAsCandidate: boolean;
+}
+
+export interface RuleRevision {
+  revision: number;
+  title: string;
+  text: string;
+  enabled: boolean;
+  triggerKeywords: string[];
+  fromCategoryCode?: string;
+  targetCategoryCode?: string;
+  changedAt: string;
+}
+
+export interface PersonalRule {
+  id: string;
+  title: string;
+  text: string;
+  enabled: boolean;
+  revision: number;
+  source: 'manual' | 'feedback';
+  triggerKeywords: string[];
+  fromCategoryCode?: string;
+  targetCategoryCode?: string;
+  confidence: number;
+  appliedCount: number;
+  acceptedCount: number;
+  rejectedCount: number;
+  createdAt: string;
+  updatedAt: string;
+  history: RuleRevision[];
+}
+
+export interface PersonalRuleInput {
+  title: string;
+  text: string;
+  enabled: boolean;
+  triggerKeywords: string[];
+  fromCategoryCode?: string;
+  targetCategoryCode?: string;
+}
+
+export interface CandidateRule {
+  id: string;
+  feedbackId: string;
+  title: string;
+  text: string;
+  triggerKeywords: string[];
+  fromCategoryCode?: string;
+  targetCategoryCode?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  linkedRuleId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeedbackClassificationSnapshot {
+  primaryCategoryCode: string;
+  crossReferenceCategoryCodes: string[];
+}
+
+export interface FeedbackEvent {
+  id: string;
+  projectId: string;
+  paperHash: string;
+  paperTitle: string;
+  paperKeywords: string[];
+  ontologyVersion: string;
+  original: FeedbackClassificationSnapshot;
+  corrected: FeedbackClassificationSnapshot;
+  errorTypes: FeedbackErrorType[];
+  reason: string;
+  summary: string;
+  appliedRuleIds: string[];
+  createdAt: string;
+}
+
+export interface MemoryTrace {
+  personalPromptApplied: boolean;
+  appliedRuleIds: string[];
+  relevantFeedbackIds: string[];
+  conflicts: string[];
+}
+
+export interface MemorySnapshot {
+  rules: PersonalRule[];
+  candidateRules: CandidateRule[];
+  feedbackCount: number;
+  recentFeedback: FeedbackEvent[];
+}
+
 export interface PageText {
   page: number;
   text: string;
@@ -102,6 +210,7 @@ export interface PaperResult extends AgentPaperDraft {
   reviewStatus: ReviewStatus;
   reviewHistory: ReviewHistoryEntry[];
   validationIssues: ValidationIssue[];
+  memoryTrace?: MemoryTrace;
 }
 
 export interface ValidationIssue {
@@ -155,6 +264,10 @@ export interface AppSettings {
     baseUrl: string;
     model: string;
   };
+  memory: {
+    enabled: boolean;
+    personalRulesPrompt: string;
+  };
 }
 
 export interface SettingsInput extends AppSettings {
@@ -190,7 +303,16 @@ export interface DesktopApi {
   getProject(projectId: string): Promise<ProjectRecord>;
   getSourcePdf(projectId: string): Promise<Uint8Array>;
   runClassification(projectId: string): Promise<PaperResult>;
-  saveReview(projectId: string, result: PaperResult): Promise<PaperResult>;
+  saveReview(projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<PaperResult>;
   exportWorkbook(projectId: string): Promise<string>;
+  getMemorySnapshot(): Promise<MemorySnapshot>;
+  createPersonalRule(input: PersonalRuleInput): Promise<MemorySnapshot>;
+  updatePersonalRule(ruleId: string, input: PersonalRuleInput): Promise<MemorySnapshot>;
+  deletePersonalRule(ruleId: string): Promise<MemorySnapshot>;
+  rollbackPersonalRule(ruleId: string): Promise<MemorySnapshot>;
+  approveCandidateRule(candidateId: string): Promise<MemorySnapshot>;
+  rejectCandidateRule(candidateId: string): Promise<MemorySnapshot>;
+  clearFeedbackMemory(): Promise<MemorySnapshot>;
+  exportMemory(): Promise<string>;
   onRunEvent(listener: (event: RunEvent) => void): () => void;
 }

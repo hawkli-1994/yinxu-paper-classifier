@@ -11,6 +11,8 @@ test('renders the settings workflow in the packaged Electron renderer', async ()
     await expect(window.getByRole('button', { name: 'PaddleOCR-VL-1.5（自动转 PNG）' })).toBeVisible();
     await expect(window.getByRole('button', { name: '注册 / 获取 Key' })).toBeVisible();
     await expect(window.getByText('Pi Agent 模型')).toBeVisible();
+    await expect(window.getByText('个人分类偏好')).toBeVisible();
+    await expect(window.getByLabel('个人规则提示词')).toBeVisible();
     await expect(window.getByText('模型厂商', { exact: true })).toBeVisible();
     const provider = window.getByLabel('模型厂商');
     await provider.click();
@@ -38,6 +40,11 @@ test('renders the settings workflow in the packaged Electron renderer', async ()
     await importNavigation.click();
     await expect(window.getByRole('heading', { name: '导入论文' })).toBeVisible();
     await expect(window.getByRole('button', { name: '选择 PDF' })).toBeVisible();
+
+    await window.getByRole('menuitem', { name: '规则与记忆' }).click();
+    await expect(window.getByRole('heading', { name: '规则与记忆' })).toBeVisible();
+    await expect(window.getByText('新建个人规则')).toBeVisible();
+    await expect(window.getByText('待确认候选（0）')).toBeVisible();
   } finally {
     await app.close();
   }

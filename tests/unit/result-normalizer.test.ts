@@ -83,4 +83,10 @@ describe('paper result normalization', () => {
     expect(result.fields.视觉素材等级).toBe('A级可参考');
     expect(result.fieldAssessments.视觉素材等级.score).toBe(1);
   });
+
+  it('preserves the retrieved memory trace for audit and review', () => {
+    const memoryTrace = { personalPromptApplied: true, appliedRuleIds: ['rule-1'], relevantFeedbackIds: ['feedback-1'], conflicts: [] };
+    const result = normalizePaperResult(makeAgentDraft(), pages, { ocrQuality: 'high', memoryTrace });
+    expect(result.memoryTrace).toEqual(memoryTrace);
+  });
 });

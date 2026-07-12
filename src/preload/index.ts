@@ -11,8 +11,17 @@ const api: DesktopApi = {
   getProject: (projectId) => ipcRenderer.invoke('project:get', projectId),
   getSourcePdf: (projectId) => ipcRenderer.invoke('project:get-source-pdf', projectId),
   runClassification: (projectId) => ipcRenderer.invoke('classification:run', projectId),
-  saveReview: (projectId, result) => ipcRenderer.invoke('review:save', projectId, result),
+  saveReview: (projectId, result, feedback) => ipcRenderer.invoke('review:save', projectId, result, feedback),
   exportWorkbook: (projectId) => ipcRenderer.invoke('workbook:export', projectId),
+  getMemorySnapshot: () => ipcRenderer.invoke('memory:get'),
+  createPersonalRule: (input) => ipcRenderer.invoke('memory:rule-create', input),
+  updatePersonalRule: (ruleId, input) => ipcRenderer.invoke('memory:rule-update', ruleId, input),
+  deletePersonalRule: (ruleId) => ipcRenderer.invoke('memory:rule-delete', ruleId),
+  rollbackPersonalRule: (ruleId) => ipcRenderer.invoke('memory:rule-rollback', ruleId),
+  approveCandidateRule: (candidateId) => ipcRenderer.invoke('memory:candidate-approve', candidateId),
+  rejectCandidateRule: (candidateId) => ipcRenderer.invoke('memory:candidate-reject', candidateId),
+  clearFeedbackMemory: () => ipcRenderer.invoke('memory:feedback-clear'),
+  exportMemory: () => ipcRenderer.invoke('memory:export'),
   onRunEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]): void => listener(payload);
     ipcRenderer.on('classification:event', handler);

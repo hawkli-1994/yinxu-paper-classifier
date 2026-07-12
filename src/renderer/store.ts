@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { PaperResult, ProjectPreparation, ProjectRecord, RunEvent, SettingsView } from '../shared/contracts';
 
-export type PageKey = 'settings' | 'import' | 'process' | 'review';
+export type PageKey = 'settings' | 'import' | 'process' | 'review' | 'memory';
 
 export interface AppState {
   activePage: PageKey;

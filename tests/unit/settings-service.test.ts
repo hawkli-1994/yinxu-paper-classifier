@@ -19,12 +19,14 @@ describe('settings service', () => {
     expect((await loadSettings(root)).ocr.model).toBe('PaddlePaddle/PaddleOCR-VL-1.5');
     await saveSettings(root, {
       agent: { provider: 'openai', modelId: 'gpt-test', thinkingLevel: 'medium' },
-      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' }
+      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
+      memory: { enabled: true, personalRulesPrompt: '核心问题优先' }
     });
 
     expect(await loadSettings(root)).toEqual({
       agent: { provider: 'openai', modelId: 'gpt-test', thinkingLevel: 'medium' },
-      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' }
+      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
+      memory: { enabled: true, personalRulesPrompt: '核心问题优先' }
     });
   });
 
@@ -39,7 +41,8 @@ describe('settings service', () => {
         baseUrl: ' https://llm.example.com/v1/ ',
         thinkingLevel: 'medium'
       },
-      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' }
+      ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
+      memory: { enabled: false, personalRulesPrompt: '' }
     });
 
     expect((await loadSettings(root)).agent.baseUrl).toBe('https://llm.example.com/v1');

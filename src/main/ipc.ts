@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell, type WebContents } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AppSettings, KnowledgePackage, PaperResult, ProjectPreparation, ProjectRecord, RunEvent, SettingsInput, SettingsView } from '../shared/contracts';
+import type { AppSettings, KnowledgePackage, PaperResult, ProjectPreparation, ProjectRecord, ReviewFeedbackInput, RunEvent, SettingsInput, SettingsView } from '../shared/contracts';
 import { getAgentCredentialKey, getProviderPreset } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
 import { paperResultToDraft, summarizeReviewChanges } from '../shared/review-model';
@@ -13,6 +13,19 @@ import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pd
 import { ocrPagesIndividually } from './ocr-service';
 import { createProject, readProject, saveFinalResult, updateProjectMetadata, updateProjectStatus } from './project-service';
 import { loadSettings, saveSettings } from './settings-service';
+import {
+  approveCandidateRule,
+  clearFeedbackMemory,
+  createPersonalRule,
+  deletePersonalRule,
+  exportMemory,
+  getMemorySnapshot,
+  recordReviewFeedback,
+  rejectCandidateRule,
+  retrieveMemoryContext,
+  rollbackPersonalRule,
+  updatePersonalRule
+} from './memory-service';
 
 const getResult = async (project: ProjectRecord): Promise<PaperResult> => {
   try {
@@ -74,7 +87,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   });
 
   ipcMain.handle('settings:save', async (_event, input: SettingsInput): Promise<SettingsView> => {
-    const settings: AppSettings = { agent: input.agent, ocr: input.ocr };
+    const settings: AppSettings = { agent: input.agent, ocr: input.ocr, memory: input.memory };
     const vault = createElectronCredentialVault(appRoot);
     if (input.agentApiKey?.trim() && input.agent.provider) await vault.set(getAgentCredentialKey(input.agent), input.agentApiKey.trim());
     if (input.ocrApiKey?.trim()) await vault.set('ocr:siliconflow', input.ocrApiKey.trim());
@@ -118,13 +131,16 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const send = (runEvent: Omit<RunEvent, 'projectId'>): void => webContents.send('classification:event', { projectId, ...runEvent } satisfies RunEvent);
 
     try {
+      const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
+      const memoryContext = await retrieveMemoryContext(appRoot, paperText, settings.memory);
       const result = await createAgentRun(project, knowledgePackage.path, {
         provider: settings.agent.provider,
         modelId: settings.agent.modelId,
         thinkingLevel: settings.agent.thinkingLevel,
         baseUrl: settings.agent.baseUrl,
         runtimeApiKey: apiKey,
-        agentDirectory: join(appRoot, 'agent')
+        agentDirectory: join(appRoot, 'agent'),
+        memoryContext
       }, send);
       await updateProjectStatus(project, 'review_required');
       return result;
@@ -135,7 +151,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     }
   });
 
-  ipcMain.handle('review:save', async (_event, projectId: string, result: PaperResult): Promise<PaperResult> => {
+  ipcMain.handle('review:save', async (_event, projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<PaperResult> => {
     const project = await readProject(getProjectDirectory(appRoot, projectId));
     const before = await getResult(project);
     const textReport = JSON.parse(await readFile(join(project.rootPath, 'extracted', 'report.json'), 'utf8')) as { quality: PaperResult['ocrQuality'] };
@@ -146,9 +162,11 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const normalized = normalizePaperResult(paperResultToDraft(result), await readPreparedPages(project), {
       ocrQuality: textReport.quality,
       reviewed: true,
-      reviewHistory
+      reviewHistory,
+      memoryTrace: before.memoryTrace
     });
     await saveFinalResult(project, normalized);
+    await recordReviewFeedback(appRoot, project, before, normalized, feedback ?? { errorTypes: [], reason: '', rememberAsCandidate: false });
     await updateProjectStatus(project, 'confirmed');
     return normalized;
   });
@@ -157,4 +175,14 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const project = await readProject(getProjectDirectory(appRoot, projectId));
     return exportWorkbook(project, await getResult(project));
   });
+
+  ipcMain.handle('memory:get', async () => getMemorySnapshot(appRoot));
+  ipcMain.handle('memory:rule-create', async (_event, input) => createPersonalRule(appRoot, input));
+  ipcMain.handle('memory:rule-update', async (_event, ruleId, input) => updatePersonalRule(appRoot, ruleId, input));
+  ipcMain.handle('memory:rule-delete', async (_event, ruleId) => deletePersonalRule(appRoot, ruleId));
+  ipcMain.handle('memory:rule-rollback', async (_event, ruleId) => rollbackPersonalRule(appRoot, ruleId));
+  ipcMain.handle('memory:candidate-approve', async (_event, candidateId) => approveCandidateRule(appRoot, candidateId));
+  ipcMain.handle('memory:candidate-reject', async (_event, candidateId) => rejectCandidateRule(appRoot, candidateId));
+  ipcMain.handle('memory:feedback-clear', async () => clearFeedbackMemory(appRoot));
+  ipcMain.handle('memory:export', async () => exportMemory(appRoot));
 };

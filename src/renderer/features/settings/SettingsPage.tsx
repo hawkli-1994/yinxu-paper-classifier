@@ -1,6 +1,6 @@
 import { LinkOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Divider, Form, Input, Select, Space, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Divider, Form, Input, Select, Space, Switch, Tag, Typography, message } from 'antd';
 import type { SettingsInput } from '../../../shared/contracts';
 import {
   CUSTOM_PROVIDER_ID,
@@ -23,6 +23,8 @@ interface SettingsFormValues {
   ocrBaseUrl: string;
   ocrModel: string;
   ocrApiKey?: string;
+  memoryEnabled: boolean;
+  personalRulesPrompt: string;
 }
 
 const providerSelectOptions = providerGroups.map((group) => ({
@@ -70,7 +72,9 @@ export const SettingsPage = (): React.JSX.Element => {
       modelId: settings.agent.modelId,
       thinkingLevel: settings.agent.thinkingLevel,
       ocrBaseUrl: settings.ocr.baseUrl,
-      ocrModel: settings.ocr.model
+      ocrModel: settings.ocr.model,
+      memoryEnabled: settings.memory.enabled,
+      personalRulesPrompt: settings.memory.personalRulesPrompt
     });
   }, [form, settings]);
 
@@ -85,6 +89,7 @@ export const SettingsPage = (): React.JSX.Element => {
           baseUrl: isCustomProvider(values.provider) ? normalizeAgentBaseUrl(values.baseUrl) : undefined
         },
         ocr: { baseUrl: values.ocrBaseUrl.trim(), model: values.ocrModel.trim() },
+        memory: { enabled: values.memoryEnabled, personalRulesPrompt: values.personalRulesPrompt?.trim() ?? '' },
         agentApiKey: values.agentApiKey,
         ocrApiKey: values.ocrApiKey
       });
@@ -128,7 +133,7 @@ export const SettingsPage = (): React.JSX.Element => {
       <Typography.Title level={2}>模型与 OCR 设置</Typography.Title>
       <Typography.Paragraph type="secondary">从按量 API、聚合服务或 Coding Plan 订阅中选择。Coding Plan 会固定使用对应厂商的专用端点，并与按量 API 分开保存凭据；只有“自定义兼容端点”需要填写 Base URL。</Typography.Paragraph>
       <Alert className="section-alert" type="info" showIcon message="Windows 中凭据保存在当前用户的系统安全存储；macOS 开发预览若系统安全存储不可用，凭据只保留到本次应用关闭。凭据不会写入论文项目或 Excel。" />
-      <Form form={form} layout="vertical" onFinish={save} initialValues={{ thinkingLevel: 'medium', ocrBaseUrl: 'https://api.siliconflow.cn/v1', ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5' }}>
+      <Form form={form} layout="vertical" onFinish={save} initialValues={{ thinkingLevel: 'medium', ocrBaseUrl: 'https://api.siliconflow.cn/v1', ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5', memoryEnabled: true, personalRulesPrompt: '' }}>
         <Card title="Pi Agent 模型" className="academic-card">
           <div className="form-grid">
             <Form.Item label="模型厂商" name="provider" rules={[{ required: true, message: '请选择模型厂商或自定义兼容端点。' }]}>
@@ -250,6 +255,25 @@ export const SettingsPage = (): React.JSX.Element => {
               <Input.Password placeholder="OCR 仅在扫描页需要时调用" autoComplete="new-password" />
             </Form.Item>
           </div>
+        </Card>
+        <Divider />
+        <Card title="个人分类偏好" className="academic-card">
+          <Alert
+            type="info"
+            showIcon
+            className="section-alert compact-alert"
+            message="个人规则只作为分类偏好和复核线索，不会覆盖论文原文、专家分类体系和证据要求。"
+          />
+          <Form.Item label="启用个人规则与历史反馈检索" name="memoryEnabled" valuePropName="checked">
+            <Switch checkedChildren="启用" unCheckedChildren="停用" />
+          </Form.Item>
+          <Form.Item
+            label="个人规则提示词"
+            name="personalRulesPrompt"
+            extra="适合填写长期偏好，例如：涉及多种材料时，以论文的核心研究问题确定主类，材料类型作为互见。最多 8000 字。"
+          >
+            <Input.TextArea rows={6} maxLength={8000} showCount placeholder="输入你的长期分类偏好。具体案例建议在“规则与记忆”中维护为可追踪规则。" />
+          </Form.Item>
         </Card>
         <Space>
           <Button type="primary" htmlType="submit" loading={saving}>保存设置</Button>

@@ -5,24 +5,31 @@ import { isCustomProvider, normalizeAgentBaseUrl } from '../shared/provider-conf
 
 const defaultSettings: AppSettings = {
   agent: { provider: '', modelId: '', thinkingLevel: 'medium' },
-  ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' }
+  ocr: { baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' },
+  memory: { enabled: true, personalRulesPrompt: '' }
 };
 
 const settingsPath = (root: string): string => join(root, 'config', 'settings.json');
 
-const normalizeSettings = (settings: AppSettings): AppSettings => ({
-  ...settings,
+const normalizeSettings = (settings: Partial<AppSettings>): AppSettings => ({
   agent: {
+    ...defaultSettings.agent,
     ...settings.agent,
-    provider: settings.agent.provider.trim(),
-    modelId: settings.agent.modelId.trim(),
-    baseUrl: isCustomProvider(settings.agent.provider) ? normalizeAgentBaseUrl(settings.agent.baseUrl) : undefined
+    provider: settings.agent?.provider?.trim() ?? '',
+    modelId: settings.agent?.modelId?.trim() ?? '',
+    baseUrl: isCustomProvider(settings.agent?.provider ?? '') ? normalizeAgentBaseUrl(settings.agent?.baseUrl) : undefined
+  },
+  ocr: { ...defaultSettings.ocr, ...settings.ocr },
+  memory: {
+    ...defaultSettings.memory,
+    ...settings.memory,
+    personalRulesPrompt: settings.memory?.personalRulesPrompt?.trim().slice(0, 8000) ?? ''
   }
 });
 
 export const loadSettings = async (root: string): Promise<AppSettings> => {
   try {
-    return normalizeSettings(JSON.parse(await readFile(settingsPath(root), 'utf8')) as AppSettings);
+    return normalizeSettings(JSON.parse(await readFile(settingsPath(root), 'utf8')) as Partial<AppSettings>);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return structuredClone(defaultSettings);
     throw error;

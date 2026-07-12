@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, Descriptions, Empty, Input, InputNumber, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
-import type { ConfidenceBand, PaperFieldName, PaperResult } from '../../../shared/contracts';
+import type { ConfidenceBand, PaperFieldName, PaperResult, ReviewFeedbackInput } from '../../../shared/contracts';
 import { PAPER_FIELD_NAMES } from '../../../shared/contracts';
 import { addReviewEvidence, removeReviewEvidence, updateReviewCrossReferences, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory } from '../../../shared/review-model';
 import { getCategoryPath, listLeafCategories } from '../../../shared/taxonomy';
 import { useAppStore } from '../../store';
 import { PdfEvidencePreview } from './PdfEvidencePreview';
+import { FeedbackPanel } from './FeedbackPanel';
 
 const confidenceColor = (band: ConfidenceBand): string => ({ green: 'success', yellow: 'warning', red: 'error' })[band];
 const assessmentBand = (score: number): ConfidenceBand => (score >= 0.85 ? 'green' : score >= 0.6 ? 'yellow' : 'red');
@@ -18,6 +19,7 @@ export const ReviewPage = (): React.JSX.Element => {
   const setResult = useAppStore((state) => state.setResult);
   const [saving, setSaving] = useState(false);
   const [selectedEvidenceIndex, setSelectedEvidenceIndex] = useState(0);
+  const [feedback, setFeedback] = useState<ReviewFeedbackInput>({ errorTypes: [], reason: '', rememberAsCandidate: false });
   const rows = useMemo(
     () =>
       result
@@ -34,9 +36,10 @@ export const ReviewPage = (): React.JSX.Element => {
   const save = async (): Promise<void> => {
     setSaving(true);
     try {
-      const normalized = await window.yinxu.saveReview(project.id, result);
+      const normalized = await window.yinxu.saveReview(project.id, result, feedback);
       setResult(normalized);
-      message.success('人工复核已校验并保存。');
+      setFeedback({ errorTypes: [], reason: '', rememberAsCandidate: false });
+      message.success(feedback.rememberAsCandidate ? '人工复核已保存，候选规则等待确认。' : '人工复核与反馈已保存到本机。');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存复核失败。');
     } finally {
@@ -214,6 +217,7 @@ export const ReviewPage = (): React.JSX.Element => {
           </Card>
         </Col>
       </Row>
+      <FeedbackPanel value={feedback} memoryTrace={result.memoryTrace} onChange={setFeedback} />
       <Space wrap>
         <Button type="primary" loading={saving} onClick={() => void save()}>校验并保存人工复核</Button>
         <Button disabled={result.reviewStatus !== 'confirmed'} onClick={() => void exportResult()}>导出 Excel</Button>

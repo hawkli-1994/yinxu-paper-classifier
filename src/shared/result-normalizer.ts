@@ -2,6 +2,7 @@ import {
   PAPER_FIELD_NAMES,
   type AgentPaperDraft,
   type OcrQuality,
+  type MemoryTrace,
   type PageText,
   type PaperFieldName,
   type PaperResult,
@@ -22,6 +23,7 @@ export interface NormalizeResultContext {
   ocrQuality: OcrQuality;
   reviewed?: boolean;
   reviewHistory?: ReviewHistoryEntry[];
+  memoryTrace?: MemoryTrace;
 }
 
 const visualFields = new Set<PaperFieldName>(PAPER_FIELD_NAMES.slice(12, 24));
@@ -101,7 +103,8 @@ export const normalizePaperResult = (
     confidenceBand: 'red',
     reviewStatus: context.reviewed ? 'confirmed' : 'needs_review',
     reviewHistory: context.reviewHistory ?? [],
-    validationIssues: []
+    validationIssues: [],
+    memoryTrace: context.memoryTrace
   };
   const issues = [...normalizationIssues, ...validatePaperResult(provisional, pages)];
   if (context.reviewed && issues.length > 0) throw new PaperResultValidationError(issues);

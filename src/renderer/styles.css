@@ -177,6 +177,27 @@ body {
   width: 100%;
 }
 
+.feedback-panel {
+  width: 100%;
+}
+
+.feedback-errors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.rule-stats {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.compact-alert {
+  margin-top: 0;
+}
+
 .review-path {
   margin-top: 18px;
 }
@@ -221,5 +242,9 @@ body {
 
   .provider-summary-note {
     text-align: left;
+  }
+
+  .feedback-errors {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
