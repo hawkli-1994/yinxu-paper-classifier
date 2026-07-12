@@ -1,0 +1,225 @@
+:root {
+  font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  color: #20262d;
+  background: #f4f1ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 980px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-loading {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 16px;
+  background: #f4f1ea;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.academic-sider {
+  padding: 22px 12px;
+}
+
+.brand-block {
+  padding: 4px 14px 24px;
+  color: #f7f4ee;
+}
+
+.brand-block .ant-typography {
+  color: inherit;
+  margin: 0;
+}
+
+.brand-block .ant-typography-title {
+  font-size: 23px;
+  line-height: 1.25;
+}
+
+.brand-subtitle {
+  color: #b9c5ca;
+  font-size: 12px;
+}
+
+.company-brand {
+  display: block;
+  margin-top: 6px;
+  color: #93a8b1;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.academic-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #d7d1c5;
+  padding: 0 34px;
+}
+
+.academic-content {
+  padding: 30px 34px 48px;
+  overflow: auto;
+}
+
+.page-section {
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-section > .ant-typography:first-child {
+  margin-top: 0;
+}
+
+.academic-card {
+  margin: 16px 0;
+  box-shadow: 0 2px 8px rgb(42 47 52 / 5%);
+}
+
+.section-alert {
+  margin: 16px 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.provider-summary-card {
+  grid-column: 1 / -1;
+  margin: -2px 0 8px;
+  border: 1px solid #d7d1c5;
+  background: #faf8f3;
+}
+
+.provider-summary-card .ant-card-body {
+  padding: 14px 16px;
+}
+
+.provider-summary-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.provider-summary-description {
+  margin: 5px 0 0 !important;
+  max-width: 720px;
+}
+
+.provider-endpoint-hint {
+  margin: 6px 0 0 !important;
+  color: #587482 !important;
+  font-family: Consolas, "Cascadia Mono", "Microsoft YaHei UI", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.provider-summary-note {
+  flex: 0 0 auto;
+  font-size: 12px;
+  text-align: right;
+}
+
+.model-suggestion-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.model-id-field .ant-form-item {
+  margin-bottom: 0;
+}
+
+.model-suggestion-label {
+  font-size: 12px;
+}
+
+.model-suggestion-button {
+  font-family: Consolas, "Cascadia Mono", "Microsoft YaHei UI", monospace;
+  font-size: 12px;
+}
+
+.import-card {
+  display: grid;
+  min-height: 260px;
+  place-content: center;
+  text-align: center;
+}
+
+.import-icon {
+  color: #2f4a5a;
+  font-size: 46px;
+  margin-bottom: 14px;
+}
+
+.review-select,
+.field-editor,
+.evidence-list,
+.evidence-editor {
+  width: 100%;
+}
+
+.review-path {
+  margin-top: 18px;
+}
+
+.assessment-reason {
+  font-size: 12px;
+}
+
+.selected-evidence {
+  border-color: #587482;
+  box-shadow: 0 0 0 1px rgb(47 74 90 / 12%);
+}
+
+.pdf-evidence-preview {
+  display: grid;
+  gap: 10px;
+  min-height: 260px;
+}
+
+.pdf-evidence-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #d7d1c5;
+  background: #fff;
+}
+
+.pdf-canvas-hidden {
+  display: none;
+}
+
+@media (max-width: 1040px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-summary-content {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .provider-summary-note {
+    text-align: left;
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cases"],
+  "properties": {
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "expected", "actual", "pages"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["primaryCategoryCode"],
+            "properties": {
+              "primaryCategoryCode": {"type": "string"},
+              "requiredFields": {"type": "array", "items": {"type": "string"}},
+              "shouldAbstain": {"type": "boolean"}
+            }
+          },
+          "actual": {"type": "object"},
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["page", "text"],
+              "properties": {"page": {"type": "integer", "minimum": 1}, "text": {"type": "string"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}
