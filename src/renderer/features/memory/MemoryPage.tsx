@@ -168,7 +168,7 @@ export const MemoryPage = (): React.JSX.Element => {
               renderItem={(feedback) => (
                 <List.Item>
                   <List.Item.Meta
-                    title={<Space wrap><Typography.Text>{feedback.paperTitle || '未命名论文'}</Typography.Text><Tag>{new Date(feedback.createdAt).toLocaleString()}</Tag></Space>}
+                    title={<Space wrap><Typography.Text>{feedback.paperTitle || '未命名论文'}</Typography.Text>{feedback.feedbackScope === 'author_metadata' ? <Tag color="geekblue">作者信息反馈</Tag> : feedback.feedbackScope === 'mixed' ? <Tag color="purple">混合反馈</Tag> : null}<Tag>{new Date(feedback.createdAt).toLocaleString()}</Tag></Space>}
                     description={<><Typography.Paragraph>{feedback.summary}</Typography.Paragraph>{feedback.reason ? <Typography.Paragraph type="secondary">理由：{feedback.reason}</Typography.Paragraph> : null}<Space wrap>{feedback.errorTypes.map((type) => <Tag color="orange" key={type}>{type}</Tag>)}</Space></>}
                   />
                 </List.Item>

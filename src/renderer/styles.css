@@ -201,6 +201,10 @@ body {
   width: 100%;
 }
 
+.feedback-panel > .ant-space-item {
+  width: 100%;
+}
+
 .feedback-errors {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -224,6 +228,10 @@ body {
 
 .assessment-reason {
   font-size: 12px;
+}
+
+.author-source-alert {
+  margin-bottom: 14px;
 }
 
 .selected-evidence {

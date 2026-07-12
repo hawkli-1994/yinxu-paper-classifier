@@ -8,6 +8,7 @@ import { getCategoryPath, listLeafCategories } from '../../../shared/taxonomy';
 import { useAppStore } from '../../store';
 import { PdfEvidencePreview } from './PdfEvidencePreview';
 import { FeedbackPanel } from './FeedbackPanel';
+import { isAuthorMetadataOnlyFeedback } from '../../../shared/feedback-policy';
 
 const confidenceColor = (band: ConfidenceBand): string => ({ green: 'success', yellow: 'warning', red: 'error' })[band];
 const assessmentBand = (score: number): ConfidenceBand => (score >= 0.85 ? 'green' : score >= 0.6 ? 'yellow' : 'red');
@@ -39,7 +40,13 @@ export const ReviewPage = (): React.JSX.Element => {
       const normalized = await window.yinxu.saveReview(project.id, result, feedback);
       setResult(normalized);
       setFeedback({ errorTypes: [], reason: '', rememberAsCandidate: false });
-      message.success(feedback.rememberAsCandidate ? '人工复核已保存，候选规则等待确认。' : '人工复核与反馈已保存到本机。');
+      message.success(
+        isAuthorMetadataOnlyFeedback(feedback)
+          ? '作者信息反馈已保存，不会生成分类规则。'
+          : feedback.rememberAsCandidate
+            ? '人工复核已保存，候选规则等待确认。'
+            : '人工复核与反馈已保存到本机。'
+      );
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存复核失败。');
     } finally {
@@ -114,6 +121,12 @@ export const ReviewPage = (): React.JSX.Element => {
           </Card>
 
           <Card title="论文分类字段" className="academic-card">
+            <Alert
+              type="info"
+              showIcon
+              className="author-source-alert"
+              message="作者姓名只按论文原文顺序记录；单位只照录论文明确署名，不按姓名、静态名单或当前公开任职推断院内外身份。"
+            />
             <Table
               size="small"
               pagination={false}

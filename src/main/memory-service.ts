@@ -14,6 +14,7 @@ import type {
   RuleRevision
 } from '../shared/contracts';
 import { summarizeReviewChanges } from '../shared/review-model';
+import { getFeedbackScope, isAuthorMetadataErrorType } from '../shared/feedback-policy';
 import { isValidLeafCategory } from '../shared/taxonomy';
 import { getExportsDirectory, getMemoryDirectory } from './paths';
 
@@ -276,6 +277,7 @@ export const recordReviewFeedback = async (
       crossReferenceCategoryCodes: after.crossReferenceCategoryCodes
     },
     errorTypes: [...new Set(input.errorTypes)],
+    feedbackScope: getFeedbackScope(input),
     reason: input.reason.trim().slice(0, 2000),
     summary: summarizeReviewChanges(before, after),
     appliedRuleIds: before.memoryTrace?.appliedRuleIds ?? [],
@@ -287,13 +289,23 @@ export const recordReviewFeedback = async (
   const categoryChanged = before.primaryCategoryCode !== after.primaryCategoryCode;
   await updateAppliedRuleStats(root, event.appliedRuleIds, after.primaryCategoryCode, categoryChanged);
 
-  if (input.rememberAsCandidate && (categoryChanged || event.errorTypes.length > 0 || event.reason)) {
+  const containsAuthorMetadataFeedback = event.errorTypes.some(isAuthorMetadataErrorType);
+  const ruleEligibleErrorTypes = event.errorTypes.filter((errorType) => !isAuthorMetadataErrorType(errorType));
+  const shouldCreateCandidate = input.rememberAsCandidate && event.feedbackScope !== 'author_metadata' && (
+    categoryChanged ||
+    ruleEligibleErrorTypes.length > 0 ||
+    (event.errorTypes.length === 0 && Boolean(event.reason))
+  );
+
+  if (shouldCreateCandidate) {
     const candidates = await loadCandidates(root);
     const subject = event.paperKeywords.slice(0, 4).join('、') || event.paperTitle || '相似论文';
     const categoryText = categoryChanged
       ? `将主分类由 ${before.primaryCategoryCode} 调整为 ${after.primaryCategoryCode}`
       : '保留本次人工复核经验';
-    const reason = event.reason || event.errorTypes.join('、') || event.summary;
+    const reason = containsAuthorMetadataFeedback
+      ? ruleEligibleErrorTypes.join('、') || (categoryChanged ? '主分类经人工复核修正' : '分类问题经人工复核确认')
+      : event.reason || event.errorTypes.join('、') || event.summary;
     candidates.push({
       id: randomUUID(),
       feedbackId: event.id,
@@ -350,6 +362,7 @@ export const retrieveMemoryContext = async (
     .map(({ rule }) => rule);
 
   const relevantFeedback = feedback
+    .filter((item) => !item.errorTypes.some(isAuthorMetadataErrorType))
     .map((item) => ({ item, score: keywordScore(item.paperKeywords, paperText) }))
     .filter(({ item, score }) => item.paperKeywords.length > 0 && score > 0)
     .sort((left, right) => right.score - left.score || right.item.createdAt.localeCompare(left.item.createdAt))

@@ -31,6 +31,17 @@ describe('project service', () => {
     expect(await readFile(project.sourcePdfPath)).toEqual(await readFile(source));
   });
 
+  it('updates the recorded knowledge package when an existing project is classified again', async () => {
+    const root = await makeRoot();
+    const source = join(root, 'sample.pdf');
+    await createFixturePdf(source);
+    const project = await createProject(source, root, '2.0.0');
+    const updated = await updateProjectMetadata(project, { knowledgeVersion: '2.0.1' });
+
+    expect(updated.knowledgeVersion).toBe('2.0.1');
+    expect((await readProject(updated.rootPath)).knowledgeVersion).toBe('2.0.1');
+  });
+
   it('persists the actual Agent and OCR run metadata for audit export', async () => {
     const root = await makeRoot();
     const source = join(root, 'sample.pdf');

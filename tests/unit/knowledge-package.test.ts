@@ -18,7 +18,8 @@ describe('Yinxu methodology knowledge package', () => {
   });
 
   it('covers source rules and the six high-risk category conflicts', async () => {
-    const rules = JSON.parse(await readFile(join(root, 'special-rules.json'), 'utf8')) as Array<{ id: string }>;
+    const rulesText = await readFile(join(root, 'special-rules.json'), 'utf8');
+    const rules = JSON.parse(rulesText) as Array<{ id: string }>;
     const ids = new Set(rules.map((rule) => rule.id));
 
     for (const id of [
@@ -36,6 +37,21 @@ describe('Yinxu methodology knowledge package', () => {
     ]) {
       expect(ids, `missing rule ${id}`).toContain(id);
     }
+    expect(rulesText).toContain('不生成院内/院外分类');
+    expect(rulesText).toContain('静态姓名名单不能作为身份依据');
+  });
+
+  it('forbids name-based affiliation inference throughout the author guidance', async () => {
+    const [skill, classificationRules, fieldGuidance] = await Promise.all([
+      readFile(join(root, 'SKILL.md'), 'utf8'),
+      readFile(join(root, 'references', 'classification-rules.md'), 'utf8'),
+      readFile(join(root, 'references', 'field-guidance.md'), 'utf8')
+    ]);
+
+    expect(skill).toContain('不输出固定的“院内作者/院外作者”结论');
+    expect(skill).toContain('作者单位待核验');
+    expect(classificationRules).toContain('不得根据姓名、静态名单');
+    expect(fieldGuidance).toContain('记录作者姓名，不混入单位');
   });
 
   it('defines the complete agent draft contract without model-owned final confidence', async () => {

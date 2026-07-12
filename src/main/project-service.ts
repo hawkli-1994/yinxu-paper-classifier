@@ -50,7 +50,7 @@ export const updateProjectStatus = async (project: ProjectRecord, status: Projec
 
 export const updateProjectMetadata = async (
   project: ProjectRecord,
-  metadata: Partial<Pick<ProjectRecord, 'agentProvider' | 'agentModel' | 'thinkingLevel' | 'ocrModel'>>
+  metadata: Partial<Pick<ProjectRecord, 'agentProvider' | 'agentModel' | 'thinkingLevel' | 'ocrModel' | 'knowledgeVersion'>>
 ): Promise<ProjectRecord> => {
   const updated = { ...project, ...metadata, updatedAt: now() };
   await writeJsonAtomically(join(project.rootPath, 'project.json'), updated);

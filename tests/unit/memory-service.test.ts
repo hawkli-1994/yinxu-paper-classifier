@@ -80,6 +80,48 @@ describe('local Agent memory', () => {
     expect(context.trace.conflicts).toHaveLength(1);
   });
 
+  it('keeps author identity corrections as audit feedback without teaching classification memory', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-memory-'));
+    roots.push(root);
+    const before = makePaperResult();
+    const after = makePaperResult({ fields: { ...before.fields, 作者: '人工核对后的作者姓名' } });
+
+    await recordReviewFeedback(root, makeProject(root), before, after, {
+      errorTypes: ['作者单位或身份错误'],
+      reason: '原方案使用了静态院内外名单，论文原文并未给出该身份结论。',
+      rememberAsCandidate: true
+    });
+
+    const snapshot = await getMemorySnapshot(root);
+    expect(snapshot.feedbackCount).toBe(1);
+    expect(snapshot.recentFeedback[0]?.feedbackScope).toBe('author_metadata');
+    expect(snapshot.candidateRules).toHaveLength(0);
+    const context = await retrieveMemoryContext(root, '本文讨论甲骨与祭祀。', { enabled: true, personalRulesPrompt: '' });
+    expect(context.feedback).toHaveLength(0);
+    expect(context.trace.relevantFeedbackIds).toHaveLength(0);
+  });
+
+  it('sanitizes author details out of a mixed classification candidate', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-memory-'));
+    roots.push(root);
+    const before = makePaperResult();
+    const after = makePaperResult({ primaryCategoryCode: 'A33', fields: { ...before.fields, 作者: '人工核对后的作者姓名' } });
+
+    await recordReviewFeedback(root, makeProject(root), before, after, {
+      errorTypes: ['作者单位或身份错误', '主分类错误'],
+      reason: '这段只用于人物纠错，不应进入后续 Agent 的分类记忆。',
+      rememberAsCandidate: true
+    });
+
+    const snapshot = await getMemorySnapshot(root);
+    expect(snapshot.recentFeedback[0]?.feedbackScope).toBe('mixed');
+    expect(snapshot.candidateRules).toHaveLength(1);
+    expect(snapshot.candidateRules[0]?.text).toContain('主分类错误');
+    expect(snapshot.candidateRules[0]?.text).not.toContain('人物纠错');
+    const context = await retrieveMemoryContext(root, '本文讨论甲骨与祭祀。', { enabled: true, personalRulesPrompt: '' });
+    expect(context.feedback).toHaveLength(0);
+  });
+
   it('exports a readable versioned snapshot', async () => {
     const root = await mkdtemp(join(tmpdir(), 'yinxu-memory-'));
     roots.push(root);

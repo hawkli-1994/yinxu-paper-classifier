@@ -78,6 +78,8 @@ export const FEEDBACK_ERROR_TYPES = [
   '互见分类错误',
   '标签定义不准确',
   '史实或年代错误',
+  '作者姓名识别错误',
+  '作者单位或身份错误',
   '类别重叠',
   '缺少合适类别',
   '证据不足',
@@ -161,6 +163,7 @@ export interface FeedbackEvent {
   original: FeedbackClassificationSnapshot;
   corrected: FeedbackClassificationSnapshot;
   errorTypes: FeedbackErrorType[];
+  feedbackScope?: 'classification' | 'author_metadata' | 'mixed';
   reason: string;
   summary: string;
   appliedRuleIds: string[];

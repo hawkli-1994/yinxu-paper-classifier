@@ -125,7 +125,8 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
       agentProvider: settings.agent.provider,
       agentModel: settings.agent.modelId,
       thinkingLevel: settings.agent.thinkingLevel,
-      ocrModel: settings.ocr.model
+      ocrModel: settings.ocr.model,
+      knowledgeVersion: knowledgePackage.version
     });
     const webContents: WebContents = event.sender;
     const send = (runEvent: Omit<RunEvent, 'projectId'>): void => webContents.send('classification:event', { projectId, ...runEvent } satisfies RunEvent);
