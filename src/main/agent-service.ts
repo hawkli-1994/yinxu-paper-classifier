@@ -1,7 +1,9 @@
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AuthStorage, createAgentSession, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
-import type { PaperResult, ProjectRecord } from '../shared/contracts';
+import { AuthStorage, createAgentSession, DefaultResourceLoader, defineTool, ModelRegistry, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
+import { Type, type TSchema } from 'typebox';
+import paperSchema from '../../resources/yinxu-classifier/paper-schema.json';
+import type { AgentPaperDraft, PaperResult, ProjectRecord } from '../shared/contracts';
 import {
   CUSTOM_PROVIDER_ID,
   getProviderCompatibleEndpoint,
@@ -11,7 +13,7 @@ import {
   normalizeAgentBaseUrl
 } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
-import { parseAgentDraftJson } from '../shared/result-schema';
+import { parseAgentDraft } from '../shared/result-schema';
 import { saveAgentResult } from './project-service';
 import type { RetrievedMemoryContext } from './memory-service';
 
@@ -61,11 +63,9 @@ export const buildClassificationPrompt = (project: ProjectRecord, knowledgePath:
 逐页文本：extracted/text.jsonl
 文本质量：extracted/report.json
 本次运行补充材料快照：${supplementContextPath ?? '无'}
-输出文件：result/agent-result.json
+文件操作使用当前 Agent 提供的 ls、read 和 bash 工具；不得依赖电脑另行安装的 rg、Python、PowerShell、Git 或其他系统工具。确需 Bash 时，只使用应用内随附的命令。
 
-文件操作使用当前 Agent 提供的 ls、read 和 write 工具；不得依赖电脑另行安装的 rg、Python、PowerShell、Git 或其他系统工具。确需 Bash 时，只使用应用内随附的命令。
-
-必须严格执行知识包内的 yinxu-paper-classifier Skill。选择一个主三级分类，最多 3 个互见分类，并为主分类提供带页码、可原文核对的证据。输出必须是 JSON，写入 result/agent-result.json。不得输出最终置信度、置信度颜色或复核状态。
+必须严格执行知识包内的 yinxu-paper-classifier Skill。选择一个主三级分类，最多 3 个互见分类，并为主分类提供带页码、可原文核对的证据。完成后必须调用 submit_classification_result 工具提交完整草稿；不得自行写入 result/agent-result.json，也不得只在对话中输出 JSON。工具成功返回前，分类任务尚未完成。不得输出最终置信度、置信度颜色或复核状态。
 
 写入 JSON 前，必须逐条回查 extracted/text.jsonl：evidence 和 fieldAssessments 中的每条 quote 都要从对应 page 的 text 字段复制连续原文，不得改写、纠正、跨页拼接、用省略号代替中间文字，也不得把期刊印刷页码当作 PDF page。无法逐字核对的字段证据应留空并降低该字段 score，不能为了凑证据而生成近似引文。
 
@@ -111,7 +111,31 @@ export const createClassificationResourceLoader = (projectRoot: string, agentDir
     noSkills: true
   });
 
-export const CLASSIFICATION_AGENT_TOOLS = ['read', 'ls', 'bash', 'write'] as const;
+const agentDraftSchema = Type.Unsafe<AgentPaperDraft>(paperSchema as unknown as TSchema);
+
+export const createClassificationResultTool = (onSubmit: (draft: AgentPaperDraft) => void) =>
+  defineTool({
+    name: 'submit_classification_result',
+    label: '提交分类草稿',
+    description: '提交完整的论文分类草稿。仅在完成全部事实提取、分类判断和证据核对后调用一次。',
+    promptSnippet: '完成分类时调用 submit_classification_result 提交符合结构定义的完整草稿',
+    promptGuidelines: [
+      '最终结果必须通过 submit_classification_result 提交，不得写入 result/agent-result.json。',
+      '仅当所有字段、候选分类和证据已核对完成后调用该工具。'
+    ],
+    parameters: Type.Object({ draft: agentDraftSchema }, { additionalProperties: false }),
+    async execute(_toolCallId, params) {
+      const draft = parseAgentDraft(params.draft);
+      onSubmit(draft);
+      return {
+        content: [{ type: 'text' as const, text: '分类草稿已通过结构校验并提交。' }],
+        details: { accepted: true },
+        terminate: true
+      };
+    }
+  });
+
+export const CLASSIFICATION_AGENT_TOOLS = ['read', 'ls', 'bash', 'submit_classification_result'] as const;
 
 export const createClassificationSettingsManager = (shellPath?: string): SettingsManager =>
   SettingsManager.inMemory(shellPath ? { shellPath } : {});
@@ -156,6 +180,11 @@ export const createAgentRun = async (
   const resourceLoader = createClassificationResourceLoader(project.rootPath, config.agentDirectory, knowledgePath);
   await resourceLoader.reload();
 
+  let submittedDraft: AgentPaperDraft | undefined;
+  const classificationResultTool = createClassificationResultTool((draft) => {
+    submittedDraft = draft;
+  });
+
   const { session } = await createAgentSession({
     cwd: project.rootPath,
     authStorage,
@@ -165,6 +194,7 @@ export const createAgentRun = async (
     resourceLoader,
     settingsManager: createClassificationSettingsManager(config.shellPath),
     tools: [...CLASSIFICATION_AGENT_TOOLS],
+    customTools: [classificationResultTool],
     sessionManager: SessionManager.create(project.rootPath, config.sessionDirectory)
   });
 
@@ -203,13 +233,19 @@ export const createAgentRun = async (
   onEvent({ phase: 'started', detail: `${config.provider}/${config.modelId}`, progress: 10 });
   try {
     await session.prompt(buildClassificationPrompt(project, knowledgePath, config.memoryContext, config.supplementContextPath));
+    if (!submittedDraft) {
+      sendAgentStatus('retrying', 84);
+      await session.prompt(`上一次执行没有提交有效的分类草稿。请不要解释、不要写文件，也不要输出 Markdown；请检查已读取的资料后，立即调用 submit_classification_result 工具提交完整结果。`);
+    }
   } finally {
     config.signal?.removeEventListener('abort', handleAbort);
   }
   if (config.signal?.aborted) throw new Error('用户已取消本次分类。');
 
-  const resultPath = join(project.rootPath, 'result', 'agent-result.json');
-  const draft = parseAgentDraftJson(await readFile(resultPath, 'utf8'));
+  if (!submittedDraft) {
+    throw new Error('Agent 未提交可校验的分类草稿。请重新运行分类。');
+  }
+  const draft = submittedDraft;
   if (config.memoryContext?.trace.conflicts.length) {
     draft.ruleConflicts = [...new Set([...draft.ruleConflicts, ...config.memoryContext.trace.conflicts])];
   }

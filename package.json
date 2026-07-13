@@ -1,6 +1,6 @@
 {
   "name": "yinxu-paper-classifier",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "殷墟论文分类助手 Windows 单机版",
   "main": "out/main/index.js",
   "type": "module",
@@ -31,6 +31,7 @@
     "pdfjs-dist": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "typebox": "^1.1.38",
     "zustand": "latest"
   },
   "devDependencies": {

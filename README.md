@@ -2,7 +2,7 @@
 
 面向学生的 Windows 单机版殷墟研究论文分类工具。它将 PDF 导入为独立本地项目，使用 Pi Agent 编排提取、分类与校验，并按社科院殷墟论文分类目录导出 Excel。
 
-## 当前 V0.5 能力
+## 当前版本：V0.5.7
 
 - 一篇论文对应一个本地论文项目，可在左侧项目列表中搜索、切换和重新打开；
 - 新建项目时只选择一篇主论文，同时可选择多份 PDF、TXT、Markdown 补充材料或填写手工说明；
@@ -62,7 +62,13 @@ Windows 构建：
 npm run package:win
 ```
 
-该命令会从 Git for Windows 官方发行包准备精简的私有 Git Bash 运行时，随后输出 NSIS 安装程序与 portable 可执行文件到 `release/`。PaddleOCR 官方 TypeScript SDK 直接上传 PDF，正式应用不加载本地 OCR 模型或原生 Canvas 组件；学生电脑不会安装独立 Git，也不会修改系统 PATH。
+该命令会从 Git for Windows 官方发行包准备精简的私有 Git Bash 运行时，随后输出 NSIS 安装程序与 portable 可执行文件到 `release/`。PaddleOCR 官方 TypeScript SDK 直接上传 PDF，正式应用不加载本地 OCR 模型；学生电脑不会安装独立 Git，也不会修改系统 PATH。
+
+### Windows 兼容性
+
+- V0.5.7 为 PDF.js 主进程加载补齐了 Node 原生画布兼容对象，修复 Windows 上启动时出现 `DOMMatrix is not defined` 的问题；
+- 兼容层的 Windows x64 原生依赖随安装包提供，不要求学生安装 Python、Node.js 或任何额外组件；
+- 如已安装 V0.5.6 或更早版本，请先退出应用，再安装 V0.5.7 覆盖升级。
 
 ## 数据位置
 

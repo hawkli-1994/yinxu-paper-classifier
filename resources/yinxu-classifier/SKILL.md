@@ -19,7 +19,7 @@ description: Classify one imported Yinxu research paper into the bundled 4/16/72
 
 读取 `extracted/chunks/` 中的全部 `chunk-*.md`：先列出文件，再按文件名顺序逐个读取。不得只读取 `full-text.md` 的开头；分块缺失时才改读 `extracted/text.jsonl`，并用 offset 继续直到文件结束。读取 `extracted/report.json` 了解文本和 OCR 状态。
 
-列出分块时优先使用 Agent 的 `ls` 工具，读取内容使用 `read`，生成结果使用 `write`。如需 Bash，只使用应用随附的 `ls`、`find`、`grep`、`sed` 等命令，不得假定电脑另行安装了 `rg`、Python、PowerShell、Git 或其他系统工具。
+列出分块时优先使用 Agent 的 `ls` 工具，读取内容使用 `read`。如需 Bash，只使用应用随附的 `ls`、`find`、`grep`、`sed` 等命令，不得假定电脑另行安装了 `rg`、Python、PowerShell、Git 或其他系统工具。
 
 ## 严格执行顺序
 
@@ -30,7 +30,7 @@ description: Classify one imported Yinxu research paper into the bundled 4/16/72
 5. **确定主类与互见**：只有一个主三级分类；互见最多三个、不得与主类相同，只保留论文确实形成独立论证的次要主题。
 6. **字段填写**：严格按字段指南填写。不能从文本证明的视觉、复原、版权或训练字段留空，分数不得高于 0.4。
 7. **证据核对**：主分类至少两条证据，优先分别来自研究目标和结论；引文必须逐字存在于指定 PDF 页。每条主分类及字段证据写入前都要回查 `extracted/text.jsonl` 对应 `page`，只复制连续原文，不改写、不纠错、不跨页、不用省略号占位；无法逐字核对的字段证据留空并降低评分。
-8. **输出草稿**：把 JSON 写入 `result/agent-result.json`，完整符合 `paper-schema.json`。
+8. **提交草稿**：调用 `submit_classification_result` 工具提交完整草稿。工具参数必须完整符合 `paper-schema.json`；不得自行写入 `result/agent-result.json`，也不得只在对话中输出 JSON。
 
 不得输出最终置信度、置信度颜色或复核状态；这些由程序根据证据、OCR 和规则冲突计算。不得自行编造论文编号；无法从本地总库确定顺序号时将“编号”留空。
 

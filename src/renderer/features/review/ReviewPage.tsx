@@ -9,6 +9,7 @@ import { useAppStore } from '../../store';
 import { PdfEvidencePreview } from './PdfEvidencePreview';
 import { FeedbackPanel } from './FeedbackPanel';
 import { isAuthorMetadataOnlyFeedback } from '../../../shared/feedback-policy';
+import { getReviewSaveErrorMessage } from './review-save-error';
 
 const confidenceColor = (band: ConfidenceBand): string => ({ green: 'success', yellow: 'warning', red: 'error' })[band];
 const assessmentBand = (score: number): ConfidenceBand => (score >= 0.85 ? 'green' : score >= 0.6 ? 'yellow' : 'red');
@@ -60,7 +61,7 @@ export const ReviewPage = (): React.JSX.Element => {
               : '人工复核仅保存到当前项目。'
       );
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '保存复核失败。');
+      message.error(getReviewSaveErrorMessage(error));
     } finally {
       setSaving(false);
     }
