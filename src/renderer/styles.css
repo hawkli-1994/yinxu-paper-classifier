@@ -212,6 +212,27 @@ body {
   margin-top: 10px;
 }
 
+.feedback-scope-options {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.feedback-scope-options .ant-radio-wrapper {
+  align-items: flex-start;
+  width: 100%;
+  margin-inline-end: 0;
+  padding: 10px 12px;
+  border: 1px solid #ddd6c9;
+  border-radius: 6px;
+  background: #faf8f3;
+}
+
+.feedback-scope-options .ant-radio-wrapper > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .rule-stats {
   display: block;
   margin-top: 10px;

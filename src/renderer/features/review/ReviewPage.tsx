@@ -13,6 +13,8 @@ import { isAuthorMetadataOnlyFeedback } from '../../../shared/feedback-policy';
 const confidenceColor = (band: ConfidenceBand): string => ({ green: 'success', yellow: 'warning', red: 'error' })[band];
 const assessmentBand = (score: number): ConfidenceBand => (score >= 0.85 ? 'green' : score >= 0.6 ? 'yellow' : 'red');
 const categoryOptions = listLeafCategories().map((category) => ({ value: category.code, label: `${category.code} ${category.label}` }));
+const programManagedFields = new Set<PaperFieldName>(['一级分类', '二级分类', '三级细分类', '文件路径']);
+const emptyFeedback = (): ReviewFeedbackInput => ({ errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '' });
 
 export const ReviewPage = (): React.JSX.Element => {
   const result = useAppStore((state) => state.result);
@@ -22,7 +24,7 @@ export const ReviewPage = (): React.JSX.Element => {
   const refreshProjects = useAppStore((state) => state.refreshProjects);
   const [saving, setSaving] = useState(false);
   const [selectedEvidenceIndex, setSelectedEvidenceIndex] = useState(0);
-  const [feedback, setFeedback] = useState<ReviewFeedbackInput>({ errorTypes: [], reason: '', rememberAsCandidate: false });
+  const [feedback, setFeedback] = useState<ReviewFeedbackInput>(emptyFeedback);
   const rows = useMemo(
     () =>
       result
@@ -37,19 +39,25 @@ export const ReviewPage = (): React.JSX.Element => {
   const selectedEvidence = result.evidence[Math.min(selectedEvidenceIndex, result.evidence.length - 1)];
 
   const save = async (): Promise<void> => {
+    if (feedback.memoryAction === 'candidate_rule' && !feedback.reusableLesson.trim()) {
+      message.warning('生成全局候选规则前，请先填写可复用经验。');
+      return;
+    }
     setSaving(true);
     try {
       const workspace = await window.yinxu.saveReview(project.id, result, feedback);
       setWorkspace(workspace);
       if (workspace.result) setResult(workspace.result);
       await refreshProjects();
-      setFeedback({ errorTypes: [], reason: '', rememberAsCandidate: false });
+      setFeedback(emptyFeedback());
       message.success(
         isAuthorMetadataOnlyFeedback(feedback)
-          ? '作者信息反馈已保存，不会生成分类规则。'
-          : feedback.rememberAsCandidate
-            ? '人工复核已保存，候选规则等待确认。'
-            : '人工复核与反馈已保存到本机。'
+          ? feedback.memoryAction === 'project_only' ? '作者信息反馈仅保存到当前论文。' : '作者信息反馈已加入全局记录，但不会参与后续分类检索。'
+          : feedback.memoryAction === 'candidate_rule'
+            ? '本论文复核已保存；全局候选规则等待确认。'
+            : feedback.memoryAction === 'global_memory'
+              ? '本论文复核与跨项目反馈记忆已保存。'
+              : '复核说明仅保存到当前论文。'
       );
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存复核失败。');
@@ -153,7 +161,11 @@ export const ReviewPage = (): React.JSX.Element => {
                   dataIndex: 'value',
                   render: (value: string, row: { name: PaperFieldName; assessment: PaperResult['fieldAssessments'][PaperFieldName] }) => (
                     <Space orientation="vertical" size={4} className="field-editor">
-                      <Input value={value} onChange={(event) => update(updateReviewField(result, row.name, event.target.value))} />
+                      {programManagedFields.has(row.name) ? (
+                        <Space wrap><Typography.Text code copyable>{value || '由系统生成'}</Typography.Text><Tag>系统生成 · 只读</Tag></Space>
+                      ) : (
+                        <Input value={value} onChange={(event) => update(updateReviewField(result, row.name, event.target.value))} />
+                      )}
                       <Typography.Text type="secondary" className="assessment-reason">{row.assessment.reason || '暂无说明'}</Typography.Text>
                     </Space>
                   )

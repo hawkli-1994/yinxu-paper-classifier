@@ -5,6 +5,7 @@ import type { AppSettings, CreateProjectInput, KnowledgePackage, LocalFileSelect
 import { getAgentCredentialKey, getProviderPreset } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
 import { paperResultToDraft, summarizeReviewChanges } from '../shared/review-model';
+import { isAuthorMetadataOnlyFeedback } from '../shared/feedback-policy';
 import { createAgentRun } from './agent-service';
 import { createElectronCredentialVault } from './credentials-service';
 import { exportWorkbook } from './export-service';
@@ -37,7 +38,9 @@ import {
   recordReviewFeedback,
   rejectCandidateRule,
   retrieveMemoryContext,
+  rollbackGlobalMemorySettings,
   rollbackPersonalRule,
+  updateGlobalMemorySettings,
   updatePersonalRule
 } from './memory-service';
 import { activeSupplementalMaterials, addSupplementalFiles, addSupplementalNote, listSupplementalMaterials, removeSupplementalMaterial } from './supplement-service';
@@ -266,20 +269,30 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     assertProjectNotClassifying(projectId);
     let project = await readProject(getProjectDirectory(appRoot, projectId));
     const before = await getResult(project);
+    const feedbackInput = feedback ?? { errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '' };
+    if (feedbackInput.memoryAction === 'candidate_rule' && !feedbackInput.reusableLesson.trim()) {
+      throw new Error('生成全局候选规则时必须填写可复用经验。');
+    }
+    if (feedbackInput.memoryAction === 'candidate_rule' && isAuthorMetadataOnlyFeedback(feedbackInput)) {
+      throw new Error('作者姓名、单位和身份反馈不能生成跨项目分类规则。');
+    }
     const textReport = JSON.parse(await readFile(join(project.rootPath, 'extracted', 'report.json'), 'utf8')) as { quality: PaperResult['ocrQuality'] };
-    const reviewHistory = [
-      ...(before.reviewHistory ?? []),
-      { at: new Date().toISOString(), summary: summarizeReviewChanges(before, result) }
-    ];
-    const normalized = normalizePaperResult(paperResultToDraft(result), await readPreparedPages(project), {
+    const projectReason = feedbackInput.projectReason.trim().slice(0, 2000);
+    const normalizedBase = normalizePaperResult(paperResultToDraft(result), await readPreparedPages(project), {
       ocrQuality: textReport.quality,
       reviewed: true,
-      reviewHistory,
+      reviewHistory: before.reviewHistory ?? [],
       memoryTrace: before.memoryTrace
     });
+    const changeSummary = summarizeReviewChanges(before, normalizedBase);
+    const revisionSummary = projectReason ? `${changeSummary}；本论文复核说明：${projectReason}` : changeSummary;
+    const normalized = {
+      ...normalizedBase,
+      reviewHistory: [...(before.reviewHistory ?? []), { at: new Date().toISOString(), summary: revisionSummary }]
+    };
     await saveFinalResult(project, normalized);
-    await recordReviewFeedback(appRoot, project, before, normalized, feedback ?? { errorTypes: [], reason: '', rememberAsCandidate: false });
-    project = await saveReviewRevision(project, normalized, summarizeReviewChanges(before, normalized));
+    await recordReviewFeedback(appRoot, project, before, normalized, feedbackInput);
+    project = await saveReviewRevision(project, normalized, revisionSummary);
     return loadProjectWorkspace(appRoot, project.id);
   });
 
@@ -296,6 +309,8 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   });
 
   ipcMain.handle('memory:get', async () => getMemorySnapshot(appRoot));
+  ipcMain.handle('memory:settings-update', async (_event, input) => updateGlobalMemorySettings(appRoot, input));
+  ipcMain.handle('memory:settings-rollback', async () => rollbackGlobalMemorySettings(appRoot));
   ipcMain.handle('memory:rule-create', async (_event, input) => createPersonalRule(appRoot, input));
   ipcMain.handle('memory:rule-update', async (_event, ruleId, input) => updatePersonalRule(appRoot, ruleId, input));
   ipcMain.handle('memory:rule-delete', async (_event, ruleId) => deletePersonalRule(appRoot, ruleId));

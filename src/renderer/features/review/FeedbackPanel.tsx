@@ -1,4 +1,4 @@
-import { Alert, Card, Checkbox, Input, Space, Switch, Tag, Typography } from 'antd';
+import { Alert, Card, Checkbox, Input, Radio, Space, Tag, Typography } from 'antd';
 import { FEEDBACK_ERROR_TYPES, type MemoryTrace, type ReviewFeedbackInput } from '../../../shared/contracts';
 import { getFeedbackScope, isAuthorMetadataOnlyFeedback } from '../../../shared/feedback-policy';
 
@@ -33,7 +33,7 @@ export const FeedbackPanel = ({ value, memoryTrace, onChange }: FeedbackPanelPro
           value={value.errorTypes}
           onChange={(errorTypes) => {
             const next = { ...value, errorTypes: errorTypes as ReviewFeedbackInput['errorTypes'] };
-            onChange(isAuthorMetadataOnlyFeedback(next) ? { ...next, rememberAsCandidate: false } : next);
+            onChange(isAuthorMetadataOnlyFeedback(next) && next.memoryAction === 'candidate_rule' ? { ...next, memoryAction: 'global_memory' } : next);
           }}
         />
       </div>
@@ -45,25 +45,41 @@ export const FeedbackPanel = ({ value, memoryTrace, onChange }: FeedbackPanelPro
         />
       ) : null}
       <div>
-        <Typography.Text strong>修改理由或经验</Typography.Text>
+        <Typography.Text strong>本论文复核说明</Typography.Text>
         <Input.TextArea
-          value={value.reason}
+          value={value.projectReason}
           maxLength={2000}
           showCount
           rows={4}
-          placeholder="说明为什么修改；这段文字会和修改前后结果一起保存到本机记忆。"
-          onChange={(event) => onChange({ ...value, reason: event.target.value })}
+          placeholder="说明本篇论文为什么这样修改；仅保存在当前项目的复核历史中。"
+          onChange={(event) => onChange({ ...value, projectReason: event.target.value })}
         />
       </div>
-      <Space>
-        <Switch
-          checked={!authorMetadataOnly && value.rememberAsCandidate}
-          disabled={authorMetadataOnly}
-          onChange={(rememberAsCandidate) => onChange({ ...value, rememberAsCandidate })}
-        />
-        <Typography.Text>将本次经验生成候选规则，稍后由我确认</Typography.Text>
-      </Space>
-      <Typography.Text type="secondary">反馈会进入本机记录；候选规则必须在“规则与记忆”页面批准后才会参与后续分类。</Typography.Text>
+      <div>
+        <Typography.Text strong>本次反馈如何使用</Typography.Text>
+        <Radio.Group value={value.memoryAction} onChange={(event) => onChange({ ...value, memoryAction: event.target.value })}>
+          <Space orientation="vertical" className="feedback-scope-options">
+            <Radio value="project_only"><Typography.Text>仅保存到当前论文</Typography.Text><Typography.Text type="secondary">不会出现在全局记忆中，也不会影响其他论文。</Typography.Text></Radio>
+            <Radio value="global_memory"><Typography.Text>加入跨项目反馈记忆</Typography.Text><Typography.Text type="secondary">后续相似论文可以检索这次经验，但不会直接成为规则。</Typography.Text></Radio>
+            <Radio value="candidate_rule" disabled={authorMetadataOnly}><Typography.Text>生成全局候选规则</Typography.Text><Typography.Text type="secondary">需要在“规则与记忆”中再次批准后才会生效。</Typography.Text></Radio>
+          </Space>
+        </Radio.Group>
+      </div>
+      {value.memoryAction !== 'project_only' ? (
+        <div>
+          <Typography.Text strong>可复用经验{value.memoryAction === 'candidate_rule' ? '（必填）' : '（可选）'}</Typography.Text>
+          <Input.TextArea
+            value={value.reusableLesson}
+            maxLength={2000}
+            showCount
+            rows={4}
+            status={value.memoryAction === 'candidate_rule' && !value.reusableLesson.trim() ? 'warning' : undefined}
+            placeholder={value.memoryAction === 'candidate_rule' ? '提炼一条可以安全应用到其他相似论文的规则依据。' : '只填写可以跨论文复用的经验，不要放入本篇特有的页码、错字或作者信息。'}
+            onChange={(event) => onChange({ ...value, reusableLesson: event.target.value })}
+          />
+        </div>
+      ) : null}
+      <Typography.Text type="secondary">项目复核说明与跨项目记忆分开保存；只有全局候选规则需要人工二次批准。</Typography.Text>
     </Space>
   </Card>;
 };

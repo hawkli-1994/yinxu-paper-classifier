@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import type {
   CandidateRule,
   FeedbackEvent,
+  GlobalMemorySettings,
   MemorySnapshot,
   MemoryTrace,
   PaperResult,
@@ -17,8 +18,9 @@ import { summarizeReviewChanges } from '../shared/review-model';
 import { getFeedbackScope, isAuthorMetadataErrorType } from '../shared/feedback-policy';
 import { isValidLeafCategory } from '../shared/taxonomy';
 import { getExportsDirectory, getMemoryDirectory } from './paths';
+import { loadSettings, saveSettings } from './settings-service';
 
-const MEMORY_SCHEMA_VERSION = 1;
+const MEMORY_SCHEMA_VERSION = 2;
 const MAX_RETRIEVED_RULES = 8;
 const MAX_RETRIEVED_FEEDBACK = 3;
 
@@ -43,7 +45,16 @@ const writeJsonAtomically = async (path: string, value: unknown): Promise<void> 
   await rename(temporaryPath, path);
 };
 
-const loadRules = (root: string): Promise<PersonalRule[]> => loadJson(rulesPath(root), []);
+const normalizeStoredRule = (rule: PersonalRule): PersonalRule => {
+  const scope = rule.scope ?? (rule.triggerKeywords.length > 0 || rule.fromCategoryCode ? 'conditional' : 'all_papers');
+  return {
+    ...rule,
+    scope,
+    history: (rule.history ?? []).map((revision) => ({ ...revision, scope: revision.scope ?? scope }))
+  };
+};
+
+const loadRules = async (root: string): Promise<PersonalRule[]> => (await loadJson<PersonalRule[]>(rulesPath(root), [])).map(normalizeStoredRule);
 const loadCandidates = (root: string): Promise<CandidateRule[]> => loadJson(candidatesPath(root), []);
 
 const loadFeedback = async (root: string): Promise<FeedbackEvent[]> => {
@@ -71,16 +82,22 @@ const normalizeKeywords = (keywords: readonly string[]): string[] =>
 const sanitizeRuleInput = (input: PersonalRuleInput): PersonalRuleInput => {
   const title = input.title.trim().slice(0, 120);
   const text = input.text.trim().slice(0, 4000);
-  if (!title || !text) throw new Error('个人规则必须填写标题和规则内容。');
-  const fromCategoryCode = input.fromCategoryCode?.trim() || undefined;
+  if (!title || !text) throw new Error('跨项目规则必须填写标题和规则内容。');
+  const scope = input.scope === 'all_papers' ? 'all_papers' : 'conditional';
+  const fromCategoryCode = scope === 'conditional' ? input.fromCategoryCode?.trim() || undefined : undefined;
   const targetCategoryCode = input.targetCategoryCode?.trim() || undefined;
   if (fromCategoryCode && !isValidLeafCategory(fromCategoryCode)) throw new Error('原分类代码必须是有效的三级分类。');
   if (targetCategoryCode && !isValidLeafCategory(targetCategoryCode)) throw new Error('建议分类代码必须是有效的三级分类。');
+  const triggerKeywords = scope === 'conditional' ? normalizeKeywords(input.triggerKeywords) : [];
+  if (scope === 'conditional' && triggerKeywords.length === 0 && !fromCategoryCode) {
+    throw new Error('条件规则至少需要填写触发关键词或适用的原主分类。');
+  }
   return {
     title,
     text,
     enabled: input.enabled,
-    triggerKeywords: normalizeKeywords(input.triggerKeywords),
+    scope,
+    triggerKeywords,
     fromCategoryCode,
     targetCategoryCode
   };
@@ -91,6 +108,7 @@ const revisionOf = (rule: PersonalRule): RuleRevision => ({
   title: rule.title,
   text: rule.text,
   enabled: rule.enabled,
+  scope: rule.scope,
   triggerKeywords: rule.triggerKeywords,
   fromCategoryCode: rule.fromCategoryCode,
   targetCategoryCode: rule.targetCategoryCode,
@@ -108,13 +126,57 @@ const saveCandidates = async (root: string, candidates: CandidateRule[]): Promis
 };
 
 export const getMemorySnapshot = async (root: string): Promise<MemorySnapshot> => {
-  const [rules, candidateRules, feedback] = await Promise.all([loadRules(root), loadCandidates(root), loadFeedback(root)]);
+  const [rules, candidateRules, feedback, settings] = await Promise.all([loadRules(root), loadCandidates(root), loadFeedback(root), loadSettings(root)]);
   return {
+    settings: settings.memory,
     rules: [...rules].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     candidateRules: [...candidateRules].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     feedbackCount: feedback.length,
     recentFeedback: feedback.slice(-20).reverse()
   };
+};
+
+export const updateGlobalMemorySettings = async (
+  root: string,
+  input: Pick<GlobalMemorySettings, 'enabled' | 'globalGuidance'>
+): Promise<MemorySnapshot> => {
+  const settings = await loadSettings(root);
+  const current = settings.memory;
+  const globalGuidance = input.globalGuidance.trim().slice(0, 8000);
+  if (current.enabled === input.enabled && current.globalGuidance === globalGuidance) return getMemorySnapshot(root);
+  const timestamp = now();
+  const history = current.revision > 0
+    ? [...current.history, { revision: current.revision, enabled: current.enabled, text: current.globalGuidance, changedAt: current.updatedAt ?? timestamp }]
+    : current.history;
+  await saveSettings(root, {
+    ...settings,
+    memory: {
+      enabled: input.enabled,
+      globalGuidance,
+      revision: current.revision + 1,
+      updatedAt: timestamp,
+      history
+    }
+  });
+  return getMemorySnapshot(root);
+};
+
+export const rollbackGlobalMemorySettings = async (root: string): Promise<MemorySnapshot> => {
+  const settings = await loadSettings(root);
+  const current = settings.memory;
+  const previous = current.history.at(-1);
+  if (!previous) throw new Error('全局分类指导还没有可回滚的历史版本。');
+  await saveSettings(root, {
+    ...settings,
+    memory: {
+      enabled: previous.enabled,
+      globalGuidance: previous.text,
+      revision: current.revision + 1,
+      updatedAt: now(),
+      history: current.history.slice(0, -1)
+    }
+  });
+  return getMemorySnapshot(root);
 };
 
 export const createPersonalRule = async (root: string, input: PersonalRuleInput): Promise<MemorySnapshot> => {
@@ -142,7 +204,7 @@ export const updatePersonalRule = async (root: string, ruleId: string, input: Pe
   const normalized = sanitizeRuleInput(input);
   const rules = await loadRules(root);
   const index = rules.findIndex((rule) => rule.id === ruleId);
-  if (index < 0) throw new Error('个人规则不存在。');
+  if (index < 0) throw new Error('跨项目规则不存在。');
   const current = rules[index]!;
   rules[index] = {
     ...current,
@@ -158,7 +220,7 @@ export const updatePersonalRule = async (root: string, ruleId: string, input: Pe
 export const deletePersonalRule = async (root: string, ruleId: string): Promise<MemorySnapshot> => {
   const rules = await loadRules(root);
   const next = rules.filter((rule) => rule.id !== ruleId);
-  if (next.length === rules.length) throw new Error('个人规则不存在。');
+  if (next.length === rules.length) throw new Error('跨项目规则不存在。');
   await saveRules(root, next);
   return getMemorySnapshot(root);
 };
@@ -166,7 +228,7 @@ export const deletePersonalRule = async (root: string, ruleId: string): Promise<
 export const rollbackPersonalRule = async (root: string, ruleId: string): Promise<MemorySnapshot> => {
   const rules = await loadRules(root);
   const index = rules.findIndex((rule) => rule.id === ruleId);
-  if (index < 0) throw new Error('个人规则不存在。');
+  if (index < 0) throw new Error('跨项目规则不存在。');
   const current = rules[index]!;
   const previous = current.history.at(-1);
   if (!previous) throw new Error('该规则没有可回滚的历史版本。');
@@ -175,6 +237,7 @@ export const rollbackPersonalRule = async (root: string, ruleId: string): Promis
     title: previous.title,
     text: previous.text,
     enabled: previous.enabled,
+    scope: previous.scope,
     triggerKeywords: previous.triggerKeywords,
     fromCategoryCode: previous.fromCategoryCode,
     targetCategoryCode: previous.targetCategoryCode,
@@ -199,6 +262,7 @@ export const approveCandidateRule = async (root: string, candidateId: string): P
     title: candidate.title,
     text: candidate.text,
     enabled: true,
+    scope: candidate.scope ?? 'conditional',
     revision: 1,
     source: 'feedback',
     triggerKeywords: candidate.triggerKeywords,
@@ -259,8 +323,20 @@ export const recordReviewFeedback = async (
   before: PaperResult,
   after: PaperResult,
   input: ReviewFeedbackInput
-): Promise<FeedbackEvent> => {
+): Promise<FeedbackEvent | undefined> => {
   const timestamp = now();
+  const categoryChanged = before.primaryCategoryCode !== after.primaryCategoryCode;
+  const appliedRuleIds = before.memoryTrace?.appliedRuleIds ?? [];
+  await updateAppliedRuleStats(root, appliedRuleIds, after.primaryCategoryCode, categoryChanged);
+  if (input.memoryAction === 'project_only') return undefined;
+  const reusableLesson = input.reusableLesson.trim().slice(0, 2000);
+  const feedbackScope = getFeedbackScope(input);
+  if (input.memoryAction === 'candidate_rule' && feedbackScope === 'author_metadata') {
+    throw new Error('作者姓名、单位和身份反馈不能生成跨项目分类规则。');
+  }
+  if (input.memoryAction === 'candidate_rule' && !reusableLesson) {
+    throw new Error('生成全局候选规则时必须填写可复用经验。');
+  }
   const event: FeedbackEvent = {
     id: randomUUID(),
     projectId: project.id,
@@ -277,24 +353,21 @@ export const recordReviewFeedback = async (
       crossReferenceCategoryCodes: after.crossReferenceCategoryCodes
     },
     errorTypes: [...new Set(input.errorTypes)],
-    feedbackScope: getFeedbackScope(input),
-    reason: input.reason.trim().slice(0, 2000),
+    feedbackScope,
+    memoryAction: input.memoryAction,
+    reason: reusableLesson,
     summary: summarizeReviewChanges(before, after),
-    appliedRuleIds: before.memoryTrace?.appliedRuleIds ?? [],
+    appliedRuleIds,
     createdAt: timestamp
   };
   await mkdir(getMemoryDirectory(root), { recursive: true });
   await appendFile(feedbackPath(root), `${JSON.stringify(event)}\n`, 'utf8');
 
-  const categoryChanged = before.primaryCategoryCode !== after.primaryCategoryCode;
-  await updateAppliedRuleStats(root, event.appliedRuleIds, after.primaryCategoryCode, categoryChanged);
-
-  const containsAuthorMetadataFeedback = event.errorTypes.some(isAuthorMetadataErrorType);
   const ruleEligibleErrorTypes = event.errorTypes.filter((errorType) => !isAuthorMetadataErrorType(errorType));
-  const shouldCreateCandidate = input.rememberAsCandidate && event.feedbackScope !== 'author_metadata' && (
+  const shouldCreateCandidate = input.memoryAction === 'candidate_rule' && event.feedbackScope !== 'author_metadata' && (
     categoryChanged ||
     ruleEligibleErrorTypes.length > 0 ||
-    (event.errorTypes.length === 0 && Boolean(event.reason))
+    (event.errorTypes.length === 0 && Boolean(reusableLesson))
   );
 
   if (shouldCreateCandidate) {
@@ -303,15 +376,14 @@ export const recordReviewFeedback = async (
     const categoryText = categoryChanged
       ? `将主分类由 ${before.primaryCategoryCode} 调整为 ${after.primaryCategoryCode}`
       : '保留本次人工复核经验';
-    const reason = containsAuthorMetadataFeedback
-      ? ruleEligibleErrorTypes.join('、') || (categoryChanged ? '主分类经人工复核修正' : '分类问题经人工复核确认')
-      : event.reason || event.errorTypes.join('、') || event.summary;
+    const reason = reusableLesson || ruleEligibleErrorTypes.join('、') || event.summary;
     candidates.push({
       id: randomUUID(),
       feedbackId: event.id,
       title: `${subject}的复核经验`,
       text: `处理与「${subject}」相似的论文时，${categoryText}。复核依据：${reason}`,
-      triggerKeywords: event.paperKeywords.slice(0, 8),
+      scope: 'conditional',
+      triggerKeywords: (event.paperKeywords.length ? event.paperKeywords : parsePaperKeywords(event.paperTitle)).slice(0, 8),
       fromCategoryCode: categoryChanged ? before.primaryCategoryCode : undefined,
       targetCategoryCode: categoryChanged ? after.primaryCategoryCode : undefined,
       status: 'pending',
@@ -342,7 +414,7 @@ export interface RetrievedMemoryContext {
 export const retrieveMemoryContext = async (
   root: string,
   paperText: string,
-  settings: { enabled: boolean; personalRulesPrompt: string }
+  settings: Pick<GlobalMemorySettings, 'enabled' | 'globalGuidance'>
 ): Promise<RetrievedMemoryContext> => {
   if (!settings.enabled) {
     return {
@@ -378,11 +450,11 @@ export const retrieveMemoryContext = async (
       if (!right.targetCategoryCode || left.targetCategoryCode === right.targetCategoryCode) continue;
       const sharedKeywords = left.triggerKeywords.filter((keyword) => right.triggerKeywords.includes(keyword));
       if (sharedKeywords.length === 0 && left.triggerKeywords.length > 0 && right.triggerKeywords.length > 0) continue;
-      conflicts.push(`个人规则「${left.title}」建议 ${left.targetCategoryCode}，但「${right.title}」建议 ${right.targetCategoryCode}`);
+      conflicts.push(`跨项目规则「${left.title}」建议 ${left.targetCategoryCode}，但「${right.title}」建议 ${right.targetCategoryCode}`);
     }
   }
 
-  const personalPrompt = settings.personalRulesPrompt.trim().slice(0, 8000);
+  const personalPrompt = settings.globalGuidance.trim().slice(0, 8000);
   return {
     personalPrompt,
     rules: matchedRules,

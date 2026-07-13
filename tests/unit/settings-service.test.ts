@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -20,13 +20,13 @@ describe('settings service', () => {
     await saveSettings(root, {
       agent: { provider: 'openai', modelId: 'gpt-test', thinkingLevel: 'medium' },
       ocr: { mode: 'cloud', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
-      memory: { enabled: true, personalRulesPrompt: '核心问题优先' }
+      memory: { enabled: true, globalGuidance: '核心问题优先', revision: 1, history: [] }
     });
 
     expect(await loadSettings(root)).toEqual({
       agent: { provider: 'openai', modelId: 'gpt-test', thinkingLevel: 'medium' },
       ocr: { mode: 'cloud', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
-      memory: { enabled: true, personalRulesPrompt: '核心问题优先' }
+      memory: { enabled: true, globalGuidance: '核心问题优先', revision: 1, history: [] }
     });
   });
 
@@ -42,9 +42,20 @@ describe('settings service', () => {
         thinkingLevel: 'medium'
       },
       ocr: { mode: 'local', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
-      memory: { enabled: false, personalRulesPrompt: '' }
+      memory: { enabled: false, globalGuidance: '', revision: 0, history: [] }
     });
 
     expect((await loadSettings(root)).agent.baseUrl).toBe('https://llm.example.com/v1');
+  });
+
+  it('migrates the former hidden personal prompt into global guidance', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-settings-'));
+    roots.push(root);
+    await mkdir(join(root, 'config'), { recursive: true });
+    await writeFile(join(root, 'config', 'settings.json'), JSON.stringify({
+      memory: { enabled: true, personalRulesPrompt: '旧版长期偏好' }
+    }));
+
+    expect((await loadSettings(root)).memory).toMatchObject({ enabled: true, globalGuidance: '旧版长期偏好', revision: 1, history: [] });
   });
 });

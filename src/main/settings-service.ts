@@ -1,17 +1,31 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { AppSettings } from '../shared/contracts';
+import type { AppSettings, GlobalMemorySettings } from '../shared/contracts';
 import { isCustomProvider, normalizeAgentBaseUrl } from '../shared/provider-config';
 
 const defaultSettings: AppSettings = {
   agent: { provider: '', modelId: '', thinkingLevel: 'medium' },
   ocr: { mode: 'auto', baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' },
-  memory: { enabled: true, personalRulesPrompt: '' }
+  memory: { enabled: true, globalGuidance: '', revision: 0, history: [] }
 };
 
 const settingsPath = (root: string): string => join(root, 'config', 'settings.json');
 
-const normalizeSettings = (settings: Partial<AppSettings>): AppSettings => ({
+type LegacyMemorySettings = Partial<GlobalMemorySettings> & { personalRulesPrompt?: string };
+type StoredSettings = Partial<Omit<AppSettings, 'memory'>> & { memory?: LegacyMemorySettings };
+
+const normalizeMemorySettings = (memory?: LegacyMemorySettings): GlobalMemorySettings => {
+  const globalGuidance = (memory?.globalGuidance ?? memory?.personalRulesPrompt ?? '').trim().slice(0, 8000);
+  return {
+    enabled: memory?.enabled ?? defaultSettings.memory.enabled,
+    globalGuidance,
+    revision: Math.max(0, memory?.revision ?? (globalGuidance ? 1 : 0)),
+    updatedAt: memory?.updatedAt,
+    history: Array.isArray(memory?.history) ? memory.history : []
+  };
+};
+
+const normalizeSettings = (settings: StoredSettings): AppSettings => ({
   agent: {
     ...defaultSettings.agent,
     ...settings.agent,
@@ -24,16 +38,12 @@ const normalizeSettings = (settings: Partial<AppSettings>): AppSettings => ({
     ...settings.ocr,
     mode: ['auto', 'local', 'cloud'].includes(settings.ocr?.mode ?? '') ? settings.ocr!.mode! : 'auto'
   },
-  memory: {
-    ...defaultSettings.memory,
-    ...settings.memory,
-    personalRulesPrompt: settings.memory?.personalRulesPrompt?.trim().slice(0, 8000) ?? ''
-  }
+  memory: normalizeMemorySettings(settings.memory)
 });
 
 export const loadSettings = async (root: string): Promise<AppSettings> => {
   try {
-    return normalizeSettings(JSON.parse(await readFile(settingsPath(root), 'utf8')) as Partial<AppSettings>);
+    return normalizeSettings(JSON.parse(await readFile(settingsPath(root), 'utf8')) as StoredSettings);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return structuredClone(defaultSettings);
     throw error;

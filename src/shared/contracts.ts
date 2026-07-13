@@ -89,18 +89,23 @@ export const FEEDBACK_ERROR_TYPES = [
 ] as const;
 
 export type FeedbackErrorType = (typeof FEEDBACK_ERROR_TYPES)[number];
+export type FeedbackMemoryAction = 'project_only' | 'global_memory' | 'candidate_rule';
 
 export interface ReviewFeedbackInput {
   errorTypes: FeedbackErrorType[];
-  reason: string;
-  rememberAsCandidate: boolean;
+  projectReason: string;
+  memoryAction: FeedbackMemoryAction;
+  reusableLesson: string;
 }
+
+export type RuleScope = 'all_papers' | 'conditional';
 
 export interface RuleRevision {
   revision: number;
   title: string;
   text: string;
   enabled: boolean;
+  scope: RuleScope;
   triggerKeywords: string[];
   fromCategoryCode?: string;
   targetCategoryCode?: string;
@@ -114,6 +119,7 @@ export interface PersonalRule {
   enabled: boolean;
   revision: number;
   source: 'manual' | 'feedback';
+  scope: RuleScope;
   triggerKeywords: string[];
   fromCategoryCode?: string;
   targetCategoryCode?: string;
@@ -130,6 +136,7 @@ export interface PersonalRuleInput {
   title: string;
   text: string;
   enabled: boolean;
+  scope: RuleScope;
   triggerKeywords: string[];
   fromCategoryCode?: string;
   targetCategoryCode?: string;
@@ -140,6 +147,7 @@ export interface CandidateRule {
   feedbackId: string;
   title: string;
   text: string;
+  scope?: RuleScope;
   triggerKeywords: string[];
   fromCategoryCode?: string;
   targetCategoryCode?: string;
@@ -165,6 +173,7 @@ export interface FeedbackEvent {
   corrected: FeedbackClassificationSnapshot;
   errorTypes: FeedbackErrorType[];
   feedbackScope?: 'classification' | 'author_metadata' | 'mixed';
+  memoryAction?: Exclude<FeedbackMemoryAction, 'project_only'>;
   reason: string;
   summary: string;
   appliedRuleIds: string[];
@@ -178,7 +187,23 @@ export interface MemoryTrace {
   conflicts: string[];
 }
 
+export interface GlobalGuidanceRevision {
+  revision: number;
+  enabled: boolean;
+  text: string;
+  changedAt: string;
+}
+
+export interface GlobalMemorySettings {
+  enabled: boolean;
+  globalGuidance: string;
+  revision: number;
+  updatedAt?: string;
+  history: GlobalGuidanceRevision[];
+}
+
 export interface MemorySnapshot {
+  settings: GlobalMemorySettings;
   rules: PersonalRule[];
   candidateRules: CandidateRule[];
   feedbackCount: number;
@@ -374,7 +399,10 @@ export interface AppSettings {
   };
   memory: {
     enabled: boolean;
-    personalRulesPrompt: string;
+    globalGuidance: string;
+    revision: number;
+    updatedAt?: string;
+    history: GlobalGuidanceRevision[];
   };
 }
 
@@ -424,6 +452,8 @@ export interface DesktopApi {
   activateResultRevision(projectId: string, revisionId: string): Promise<ProjectWorkspace>;
   exportWorkbook(projectId: string): Promise<string>;
   getMemorySnapshot(): Promise<MemorySnapshot>;
+  updateGlobalMemorySettings(input: Pick<GlobalMemorySettings, 'enabled' | 'globalGuidance'>): Promise<MemorySnapshot>;
+  rollbackGlobalMemorySettings(): Promise<MemorySnapshot>;
   createPersonalRule(input: PersonalRuleInput): Promise<MemorySnapshot>;
   updatePersonalRule(ruleId: string, input: PersonalRuleInput): Promise<MemorySnapshot>;
   deletePersonalRule(ruleId: string): Promise<MemorySnapshot>;

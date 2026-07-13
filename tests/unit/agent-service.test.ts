@@ -31,7 +31,7 @@ describe('Agent prompt', () => {
       personalPrompt: '核心问题优先',
       rules: [{
         id: 'rule-1', title: '祭祀坑规则', text: '祭祀坑材料优先归入考古遗存。', enabled: true, revision: 1,
-        source: 'manual', triggerKeywords: ['祭祀坑'], targetCategoryCode: 'A33', confidence: 0.8,
+        source: 'manual', scope: 'conditional', triggerKeywords: ['祭祀坑'], targetCategoryCode: 'A33', confidence: 0.8,
         appliedCount: 0, acceptedCount: 0, rejectedCount: 0, createdAt: '', updatedAt: '', history: []
       }],
       feedback: [],
