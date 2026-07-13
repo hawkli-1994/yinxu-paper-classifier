@@ -2,6 +2,7 @@ import { DatabaseOutlined, PlusOutlined, SearchOutlined, SettingOutlined } from 
 import { Button, Empty, Input, Tag, Typography, message } from 'antd';
 import { useDeferredValue, useMemo, useState } from 'react';
 import type { ProjectStatus } from '../../../shared/contracts';
+import bronzeBrandIcon from '../../../../build/icon.png';
 import { useAppStore } from '../../store';
 
 interface ProjectSidebarProps {
@@ -47,8 +48,11 @@ export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX
   return (
     <aside className="project-sidebar">
       <div className="brand-block project-brand">
-        <Typography.Title level={4}>殷墟论文分类助手</Typography.Title>
-        <Typography.Text className="company-brand">北京容芯致远科技有限公司</Typography.Text>
+        <img className="brand-bronze-mark" src={bronzeBrandIcon} alt="" aria-hidden="true" />
+        <div className="project-brand-copy">
+          <Typography.Title level={4}>殷墟论文分类助手</Typography.Title>
+          <Typography.Text className="company-brand">北京容芯致远科技有限公司</Typography.Text>
+        </div>
       </div>
       <Button className="new-project-button" type="primary" icon={<PlusOutlined />} onClick={onNewProject}>新建论文项目</Button>
       <Input className="project-search" prefix={<SearchOutlined />} value={query} allowClear placeholder="按题名、作者或文件名搜索" onChange={(event) => setQuery(event.target.value)} />
