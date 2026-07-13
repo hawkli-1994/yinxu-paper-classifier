@@ -46,6 +46,8 @@ export const retry = async <T>(operation: () => Promise<T>, maxAttempts = 3, del
 };
 
 interface ChatCompletionPayload {
+  code?: unknown;
+  message?: unknown;
   choices?: Array<{
     finish_reason?: unknown;
     message?: { content?: unknown };
@@ -54,7 +56,11 @@ interface ChatCompletionPayload {
 }
 
 const getErrorDetail = (payload: ChatCompletionPayload): string | undefined =>
-  typeof payload.error?.message === 'string' ? payload.error.message.trim().slice(0, 300) : undefined;
+  typeof payload.message === 'string'
+    ? payload.message.trim().slice(0, 300)
+    : typeof payload.error?.message === 'string'
+      ? payload.error.message.trim().slice(0, 300)
+      : undefined;
 
 const getRetryAfterMs = (value: string | null): number | undefined => {
   if (!value) return undefined;
@@ -86,9 +92,6 @@ export const ocrPdfWithDeepSeek = async (pdfBytes: Uint8Array, config: OcrConfig
         signal: AbortSignal.timeout(OCR_REQUEST_TIMEOUT_MS),
         body: JSON.stringify({
           model: DEEPSEEK_OCR_MODEL_ID,
-          stream: false,
-          temperature: 0,
-          max_tokens: 8192,
           messages: [
             {
               role: 'user',

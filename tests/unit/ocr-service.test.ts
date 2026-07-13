@@ -49,12 +49,9 @@ describe('official cloud OCR pipeline', () => {
     }
 
     expect(requestUrl).toBe(`${SILICONFLOW_OCR_BASE_URL}/chat/completions`);
-    expect(requestBody).toMatchObject({
-      model: DEEPSEEK_OCR_MODEL_ID,
-      stream: false,
-      temperature: 0,
-      max_tokens: 8192
-    });
+    expect(requestBody).toEqual(expect.objectContaining({ model: DEEPSEEK_OCR_MODEL_ID }));
+    expect(requestBody).not.toHaveProperty('temperature');
+    expect(requestBody).not.toHaveProperty('max_tokens');
     const messages = requestBody.messages as Array<{ content: Array<{ type: string; text?: string; image_url?: { url: string } }> }>;
     expect(messages[0]?.content[0]?.type).toBe('image_url');
     expect(messages[0]?.content[0]?.image_url?.url).toMatch(/^data:application\/pdf;base64,/);
@@ -66,6 +63,22 @@ describe('official cloud OCR pipeline', () => {
       .rejects.toThrow('硅基流动官方接口');
     await expect(ocrPdfWithDeepSeek(new Uint8Array(), { ...config, model: 'PaddlePaddle/PaddleOCR-VL-1.5' }))
       .rejects.toThrow('当前版本仅支持官方');
+  });
+
+  it('surfaces SiliconFlow top-level error messages for invalid requests', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({
+      code: 20015,
+      message: 'invalid multimodal parameter',
+      data: null
+    }), { status: 400 });
+
+    try {
+      await expect(ocrPdfWithDeepSeek(new Uint8Array([1, 2, 3]), config))
+        .rejects.toThrow('invalid multimodal parameter');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it('retries temporary OCR failures three times', async () => {
