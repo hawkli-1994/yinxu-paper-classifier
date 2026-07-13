@@ -31,17 +31,33 @@ const createWindow = (): BrowserWindow => {
   return window;
 };
 
-void app.whenReady().then(async () => {
-  app.setName(APP_NAME);
-  const appRoot = app.getPath('userData');
-  const knowledgePackage = await ensureKnowledgePackage(appRoot);
-  registerIpcHandlers(appRoot, knowledgePackage);
-  createWindow();
+const focusPrimaryWindow = (): void => {
+  const window = BrowserWindow.getAllWindows()[0];
+  if (!window) return;
+  if (window.isMinimized()) window.restore();
+  if (!window.isVisible()) window.show();
+  window.focus();
+};
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', focusPrimaryWindow);
+
+  void app.whenReady().then(async () => {
+    app.setName(APP_NAME);
+    const appRoot = app.getPath('userData');
+    const knowledgePackage = await ensureKnowledgePackage(appRoot);
+    registerIpcHandlers(appRoot, knowledgePackage);
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
   });
-});
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

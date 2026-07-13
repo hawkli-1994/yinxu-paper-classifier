@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { randomUUID } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PAPER_FIELD_NAMES, type PaperResult, type ProjectRecord } from '../shared/contracts';
@@ -8,7 +9,9 @@ const imageHeaders = ['图像编号', '来源论文编号', '原图号', '图像
 
 const exportFileName = (project: ProjectRecord, result: PaperResult): string => {
   const label = `${result.fields.编号 || project.id}_${result.fields.作者 || '未署名'}_${result.fields.题名 || '未命名论文'}`;
-  return `${label.replace(/[\\/:*?"<>|]/g, '_').slice(0, 100)}.xlsx`;
+  const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace('Z', '');
+  const uniqueSuffix = randomUUID().slice(0, 8);
+  return `${label.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80)}_${timestamp}_${uniqueSuffix}.xlsx`;
 };
 
 export const exportWorkbook = async (project: ProjectRecord, result: PaperResult): Promise<string> => {

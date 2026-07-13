@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -40,5 +40,21 @@ describe('Excel export', () => {
     ]);
     const noteLabels = new Set(Array.from({ length: notes?.rowCount ?? 0 }, (_, index) => notes?.getCell(index + 1, 1).value));
     for (const label of ['OCR质量', '候选分类', '互见分类', '规则冲突', '人工修改记录']) expect(noteLabels).toContain(label);
+  });
+
+  it('creates a new file for every export instead of overwriting an Excel-locked file', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-export-locked-'));
+    roots.push(root);
+    const source = join(root, 'sample.pdf');
+    await createFixturePdf(source);
+    const project = await createProject(source, root, '1.0.0');
+    const result = makePaperResult();
+
+    const first = await exportWorkbook(project, result);
+    const second = await exportWorkbook(project, result);
+
+    expect(second).not.toBe(first);
+    await expect(access(first)).resolves.toBeUndefined();
+    await expect(access(second)).resolves.toBeUndefined();
   });
 });

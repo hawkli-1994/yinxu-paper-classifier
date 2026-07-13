@@ -1,4 +1,5 @@
 import { expect, test, _electron as electron } from '@playwright/test';
+import { spawn } from 'node:child_process';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -38,6 +39,26 @@ const createSmokePaper = async (targetPath: string): Promise<void> => {
   await writeFile(targetPath, await document.save());
 };
 
+const launchSecondInstance = async (executablePath: string, userData: string): Promise<number | null> =>
+  new Promise((resolve, reject) => {
+    const process = spawn(executablePath, [`--user-data-dir=${userData}`], {
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    const timeout = setTimeout(() => {
+      process.kill();
+      reject(new Error('A second application instance remained active instead of exiting.'));
+    }, 15_000);
+    process.once('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    process.once('exit', (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
+
 test('installed Windows app completes cloud OCR, Kimi classification, and export', async () => {
   test.skip(process.platform !== 'win32', 'This smoke test exercises the installed Windows application.');
 
@@ -63,6 +84,9 @@ test('installed Windows app completes cloud OCR, Kimi classification, and export
     const window = await app.firstWindow();
     await expect(window).toHaveTitle('殷墟论文分类助手');
     await expect(window.locator('vite-error-overlay')).toHaveCount(0);
+
+    expect(await launchSecondInstance(executablePath!, userData)).toBe(0);
+    expect(app.windows()).toHaveLength(1);
 
     const outcome = await window.evaluate(async ({ paperPath, kimiApiKey, ocrApiKey }) => {
       const current = await window.yinxu.getSettings();
@@ -118,6 +142,10 @@ test('installed Windows app completes cloud OCR, Kimi classification, and export
     expect(outcome.candidateCount).toBeGreaterThan(0);
     expect(outcome.evidenceCount).toBeGreaterThan(0);
     await access(outcome.workbookPath);
+
+    const secondWorkbookPath = await window.evaluate(async (projectId) => window.yinxu.exportWorkbook(projectId), outcome.projectId);
+    expect(secondWorkbookPath).not.toBe(outcome.workbookPath);
+    await access(secondWorkbookPath);
   } finally {
     await app.close();
     await rm(fixtureRoot, { recursive: true, force: true });

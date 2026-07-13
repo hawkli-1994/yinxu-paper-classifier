@@ -17,7 +17,7 @@
     "prepare:win-native": "node scripts/prepare-win-native.mjs",
     "prepare:git-bash": "node scripts/prepare-git-bash.mjs",
     "prepare:win-runtime": "npm run prepare:win-native && npm run prepare:git-bash",
-    "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64"
+    "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64 --publish never"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.2",
