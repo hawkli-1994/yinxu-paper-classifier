@@ -8,6 +8,9 @@ import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
 
 type OcrMode = 'auto' | 'local' | 'cloud';
 
+const classificationAttemptTimeoutMs = 4 * 60_000;
+const classificationCancellationTimeoutMs = 30_000;
+
 const paperLines = [
   'Yinxu Oracle Bone Divination Inscriptions: A Contextual Study',
   'Author: Li Ming',
@@ -126,6 +129,67 @@ const saveModeSettings = async (
     return { hasAgentKey: saved.hasAgentKey, hasOcrKey: saved.hasOcrKey };
   }, { mode, kimiApiKey, ocrApiKey });
 
+const runClassificationWithRetry = async (
+  window: Page,
+  projectId: string,
+  mode: OcrMode
+): Promise<{
+  workspace: Awaited<ReturnType<typeof globalThis.window.yinxu.runClassification>>;
+  attempts: number;
+}> => {
+  for (let attempts = 1; attempts <= 2; attempts += 1) {
+    let attemptTimedOut = false;
+    let attemptTimer: ReturnType<typeof setTimeout> | undefined;
+    const classification = window.evaluate(
+      async (id) => globalThis.window.yinxu.runClassification(id),
+      projectId
+    );
+    const timeout = new Promise<never>((_resolve, reject) => {
+      attemptTimer = setTimeout(() => {
+        attemptTimedOut = true;
+        reject(new Error(`Classification attempt exceeded ${classificationAttemptTimeoutMs}ms.`));
+      }, classificationAttemptTimeoutMs);
+    });
+
+    try {
+      return { workspace: await Promise.race([classification, timeout]), attempts };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (attemptTimedOut) {
+        console.warn(`[${mode}] classification attempt ${attempts} timed out; cancelling the run.`);
+        const cancellation = window.evaluate(
+          async (id) => globalThis.window.yinxu.cancelClassification(id),
+          projectId
+        );
+
+        let cancellationTimer: ReturnType<typeof setTimeout> | undefined;
+        const cancellationTimeout = new Promise<never>((_resolve, reject) => {
+          cancellationTimer = setTimeout(
+            () => reject(new Error('Timed out while waiting for the cancelled classification run to stop.')),
+            classificationCancellationTimeoutMs
+          );
+        });
+        try {
+          await Promise.race([
+            Promise.all([cancellation, classification.catch(() => undefined)]),
+            cancellationTimeout
+          ]);
+        } finally {
+          if (cancellationTimer) clearTimeout(cancellationTimer);
+        }
+      }
+
+      const retryable = attemptTimedOut || detail.includes('DraftValidationError');
+      if (!retryable || attempts >= 2) throw error;
+      console.warn(`[${mode}] retrying classification after attempt ${attempts}.`);
+    } finally {
+      if (attemptTimer) clearTimeout(attemptTimer);
+    }
+  }
+
+  throw new Error('Classification retry loop ended unexpectedly.');
+};
+
 const runClassificationScenario = async (options: {
   mode: OcrMode;
   paperPath: string;
@@ -157,40 +221,32 @@ const runClassificationScenario = async (options: {
     expect(saved.hasAgentKey).toBe(true);
     expect(saved.hasOcrKey).toBe(Boolean(options.ocrApiKey));
 
-    const outcome = await window.evaluate(async (paperPath) => {
-      const created = await window.yinxu.createProject({
+    const created = await window.evaluate(async (paperPath) =>
+      globalThis.window.yinxu.createProject({
         sourcePdfPath: paperPath,
         supplementalFiles: [],
         supplementalNotes: []
-      });
-      let classified: Awaited<ReturnType<typeof window.yinxu.runClassification>> | undefined;
-      let classificationAttempts = 0;
-      while (!classified && classificationAttempts < 2) {
-        classificationAttempts += 1;
-        try {
-          classified = await window.yinxu.runClassification(created.project.id);
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error);
-          if (classificationAttempts >= 2 || !detail.includes('DraftValidationError')) throw error;
-        }
-      }
-      if (!classified) throw new Error('Classification did not return a workspace.');
-      if (!classified.result) throw new Error('Classification completed without a structured result.');
-      const completedRun = classified.runs.find((run) => run.status === 'completed');
-      if (!completedRun) throw new Error('No completed classification run was recorded.');
-      const workbookPath = await window.yinxu.exportWorkbook(created.project.id);
-      return {
-        projectId: created.project.id,
-        preparation: created.preparation,
-        provider: completedRun.agentProvider,
-        model: completedRun.agentModel,
-        primaryCategoryCode: classified.result.primaryCategoryCode,
-        candidateCount: classified.result.candidates.length,
-        evidenceCount: classified.result.evidence.length,
-        classificationAttempts,
-        workbookPath
-      };
-    }, options.paperPath);
+      }), options.paperPath);
+    const classification = await runClassificationWithRetry(window, created.project.id, options.mode);
+    const classified = classification.workspace;
+    if (!classified.result) throw new Error('Classification completed without a structured result.');
+    const completedRun = classified.runs.find((run) => run.status === 'completed');
+    if (!completedRun) throw new Error('No completed classification run was recorded.');
+    const workbookPath = await window.evaluate(
+      async (projectId) => globalThis.window.yinxu.exportWorkbook(projectId),
+      created.project.id
+    );
+    const outcome = {
+      projectId: created.project.id,
+      preparation: created.preparation,
+      provider: completedRun.agentProvider,
+      model: completedRun.agentModel,
+      primaryCategoryCode: classified.result.primaryCategoryCode,
+      candidateCount: classified.result.candidates.length,
+      evidenceCount: classified.result.evidence.length,
+      classificationAttempts: classification.attempts,
+      workbookPath
+    };
 
     console.log(JSON.stringify({
       mode: options.mode,
