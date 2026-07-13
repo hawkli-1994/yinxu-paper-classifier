@@ -311,9 +311,11 @@ export interface CreateProjectInput {
 export interface ClassificationRunRecord {
   id: string;
   projectId: string;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
   startedAt: string;
   completedAt?: string;
+  previousProjectStatus?: ProjectStatus;
+  previousActiveRunId?: string;
   agentProvider: string;
   agentModel: string;
   thinkingLevel: ThinkingLevel;
@@ -428,8 +430,9 @@ export interface ProjectPreparation {
 export interface RunEvent {
   projectId: string;
   runId?: string;
-  phase: 'started' | 'agent' | 'validated' | 'failed';
+  phase: 'started' | 'agent' | 'validated' | 'failed' | 'cancelled';
   detail: string;
+  progress?: number;
 }
 
 export interface DesktopApi {
@@ -442,15 +445,17 @@ export interface DesktopApi {
   createProject(input: CreateProjectInput): Promise<ProjectWorkspace>;
   listProjects(): Promise<ProjectSummary[]>;
   openProject(projectId: string): Promise<ProjectWorkspace>;
+  deleteProject(projectId: string): Promise<ProjectSummary[]>;
   getProject(projectId: string): Promise<ProjectRecord>;
   getSourcePdf(projectId: string): Promise<Uint8Array>;
   addSupplementalFiles(projectId: string, files: SupplementalFileInput[]): Promise<ProjectWorkspace>;
   addSupplementalNote(projectId: string, note: SupplementalNoteInput): Promise<ProjectWorkspace>;
   removeSupplementalMaterial(projectId: string, materialId: string): Promise<ProjectWorkspace>;
   runClassification(projectId: string): Promise<ProjectWorkspace>;
+  cancelClassification(projectId: string): Promise<ProjectWorkspace>;
   saveReview(projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<ProjectWorkspace>;
   activateResultRevision(projectId: string, revisionId: string): Promise<ProjectWorkspace>;
-  exportWorkbook(projectId: string): Promise<string>;
+  exportWorkbook(projectId: string): Promise<string | undefined>;
   getMemorySnapshot(): Promise<MemorySnapshot>;
   updateGlobalMemorySettings(input: Pick<GlobalMemorySettings, 'enabled' | 'globalGuidance'>): Promise<MemorySnapshot>;
   rollbackGlobalMemorySettings(): Promise<MemorySnapshot>;

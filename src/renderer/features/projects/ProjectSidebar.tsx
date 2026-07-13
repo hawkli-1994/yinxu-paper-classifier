@@ -1,5 +1,5 @@
-import { DatabaseOutlined, PlusOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
-import { Button, Empty, Input, Tag, Typography, message } from 'antd';
+import { DatabaseOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { Button, Empty, Input, Popconfirm, Select, Tag, Typography, message } from 'antd';
 import { useDeferredValue, useMemo, useState } from 'react';
 import type { ProjectStatus } from '../../../shared/contracts';
 import bronzeBrandIcon from '../../../../build/icon.png';
@@ -27,21 +27,52 @@ const statusColor: Record<ProjectStatus, string> = {
   failed: 'red'
 };
 
+type ProjectFilter = 'all' | 'pending' | 'confirmed' | 'failed';
+
+const pendingStatuses = new Set<ProjectStatus>(['imported', 'materials_updated', 'processing', 'review_required']);
+const normalizeSearchText = (value: string): string => value
+  .normalize('NFKC')
+  .toLocaleLowerCase('zh-CN')
+  .replace(/[\s._\-—·（）()【】\[\]《》]/g, '');
+
 export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX.Element => {
   const [query, setQuery] = useState('');
-  const deferredQuery = useDeferredValue(query.trim().toLocaleLowerCase());
+  const [filter, setFilter] = useState<ProjectFilter>('all');
+  const [deletingId, setDeletingId] = useState<string>();
+  const deferredQuery = useDeferredValue(query);
   const projects = useAppStore((state) => state.projects);
   const workspace = useAppStore((state) => state.workspace);
   const globalPage = useAppStore((state) => state.globalPage);
   const openProject = useAppStore((state) => state.openProject);
+  const deleteProject = useAppStore((state) => state.deleteProject);
   const setGlobalPage = useAppStore((state) => state.setGlobalPage);
-  const filteredProjects = useMemo(() => projects.filter((project) => `${project.title}${project.author}${project.sourceFileName}`.toLocaleLowerCase().includes(deferredQuery)), [deferredQuery, projects]);
+  const searchTerms = useMemo(() => deferredQuery.trim().split(/\s+/).map(normalizeSearchText).filter(Boolean), [deferredQuery]);
+  const filteredProjects = useMemo(() => projects.filter((project) => {
+    const matchesStatus = filter === 'all'
+      || (filter === 'pending' && pendingStatuses.has(project.status))
+      || project.status === filter;
+    if (!matchesStatus) return false;
+    const searchable = normalizeSearchText(`${project.title} ${project.author} ${project.sourceFileName} ${statusLabel[project.status]}`);
+    return searchTerms.every((term) => searchable.includes(term));
+  }), [filter, projects, searchTerms]);
 
   const selectProject = async (projectId: string): Promise<void> => {
     try {
       await openProject(projectId);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '打开论文项目失败。');
+    }
+  };
+
+  const removeProject = async (projectId: string): Promise<void> => {
+    setDeletingId(projectId);
+    try {
+      await deleteProject(projectId);
+      message.success('论文项目已删除。');
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '删除论文项目失败。');
+    } finally {
+      setDeletingId(undefined);
     }
   };
 
@@ -55,22 +86,65 @@ export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX
         </div>
       </div>
       <Button className="new-project-button" type="primary" icon={<PlusOutlined />} onClick={onNewProject}>新建论文项目</Button>
-      <Input className="project-search" prefix={<SearchOutlined />} value={query} allowClear placeholder="按题名、作者或文件名搜索" onChange={(event) => setQuery(event.target.value)} />
-      <Typography.Text className="project-list-label">论文项目（{projects.length}）</Typography.Text>
+      <Input
+        className="project-search"
+        prefix={<SearchOutlined />}
+        value={query}
+        allowClear
+        aria-label="搜索论文项目"
+        autoComplete="off"
+        placeholder="按题名、作者或文件名搜索"
+        onChange={(event) => setQuery(event.target.value)}
+        onPressEnter={() => { if (filteredProjects.length === 1) void selectProject(filteredProjects[0]!.id); }}
+      />
+      <div className="project-list-toolbar">
+        <Typography.Text className="project-list-label">论文项目 {filteredProjects.length}/{projects.length}</Typography.Text>
+        <Select<ProjectFilter>
+          className="project-status-filter"
+          size="small"
+          value={filter}
+          aria-label="按项目状态筛选"
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: '全部状态' },
+            { value: 'pending', label: '待处理' },
+            { value: 'confirmed', label: '已确认' },
+            { value: 'failed', label: '处理失败' }
+          ]}
+        />
+      </div>
       <div className="project-list" role="list" aria-label="论文项目列表">
         {filteredProjects.length ? filteredProjects.map((project) => (
-          <button
-            type="button"
-            role="listitem"
-            key={project.id}
-            className={`project-list-item ${workspace?.project.id === project.id && !globalPage ? 'selected' : ''}`}
-            onClick={() => void selectProject(project.id)}
-          >
-            <span className="project-list-title">{project.title}</span>
-            <span className="project-list-meta">{project.author}</span>
-            <span className="project-list-footer"><Tag color={statusColor[project.status]}>{statusLabel[project.status]}</Tag><span>{new Date(project.updatedAt).toLocaleDateString()}</span></span>
-          </button>
-        )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query ? '未找到匹配的论文项目' : '暂无论文项目'} />}
+          <div className="project-list-row" role="listitem" key={project.id}>
+            <button
+              type="button"
+              className={`project-list-item ${workspace?.project.id === project.id && !globalPage ? 'selected' : ''}`}
+              onClick={() => void selectProject(project.id)}
+            >
+              <span className="project-list-title">{project.title}</span>
+              <span className="project-list-meta">{project.author}</span>
+              <span className="project-list-footer"><Tag color={statusColor[project.status]}>{statusLabel[project.status]}</Tag><span>{new Date(project.updatedAt).toLocaleDateString()}</span></span>
+            </button>
+            <Popconfirm
+              title="删除这个论文项目？"
+              description={`“${project.title}”的论文、分类任务和历史结果将从本机永久删除。`}
+              okText="确认删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => removeProject(project.id)}
+            >
+              <Button
+                className="project-delete-button"
+                type="text"
+                danger
+                size="small"
+                loading={deletingId === project.id}
+                icon={<DeleteOutlined />}
+                aria-label={`删除项目：${project.title}`}
+              />
+            </Popconfirm>
+          </div>
+        )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query.trim() || filter !== 'all' ? '未找到匹配的论文项目' : '暂无论文项目'} />}
       </div>
       <div className="global-navigation">
         <Button type={globalPage === 'memory' ? 'primary' : 'text'} icon={<DatabaseOutlined />} onClick={() => setGlobalPage('memory')}>全局规则与记忆</Button>

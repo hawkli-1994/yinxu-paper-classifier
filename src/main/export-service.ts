@@ -14,7 +14,9 @@ const exportFileName = (project: ProjectRecord, result: PaperResult): string => 
   return `${label.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80)}_${timestamp}_${uniqueSuffix}.xlsx`;
 };
 
-export const exportWorkbook = async (project: ProjectRecord, result: PaperResult): Promise<string> => {
+export const getWorkbookExportFileName = (project: ProjectRecord, result: PaperResult): string => exportFileName(project, result);
+
+export const exportWorkbook = async (project: ProjectRecord, result: PaperResult, targetPath?: string): Promise<string> => {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = '殷墟论文分类助手';
   workbook.created = new Date();
@@ -93,8 +95,8 @@ export const exportWorkbook = async (project: ProjectRecord, result: PaperResult
   });
 
   const exportDirectory = join(project.rootPath, 'export');
-  await mkdir(exportDirectory, { recursive: true });
-  const outputPath = join(exportDirectory, exportFileName(project, result));
+  if (!targetPath) await mkdir(exportDirectory, { recursive: true });
+  const outputPath = targetPath ?? join(exportDirectory, exportFileName(project, result));
   await workbook.xlsx.writeFile(outputPath);
   return outputPath;
 };

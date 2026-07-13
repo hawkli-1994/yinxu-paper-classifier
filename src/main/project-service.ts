@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { access, copyFile, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import type {
   ClassificationRunRecord,
@@ -199,6 +199,8 @@ export const createClassificationRun = async (
     projectId: project.id,
     status: 'running',
     startedAt: now(),
+    previousProjectStatus: project.status,
+    previousActiveRunId: project.activeRunId,
     ...metadata,
     supplementIds: supplements.map((material) => material.id),
     supplementHashes: supplements.map((material) => material.sha256),
@@ -242,6 +244,40 @@ export const failClassificationRun = async (
   return writeProject({ ...project, status: 'failed', updatedAt: now() });
 };
 
+const restoredStatusAfterInterruption = (project: ProjectRecord, run: ClassificationRunRecord): ProjectStatus =>
+  run.previousProjectStatus && run.previousProjectStatus !== 'processing'
+    ? run.previousProjectStatus
+    : project.activeRevisionId
+      ? 'review_required'
+      : 'imported';
+
+export const cancelClassificationRun = async (
+  project: ProjectRecord,
+  run: ClassificationRunRecord,
+  runDirectory: string,
+  detail = '用户已取消本次分类。'
+): Promise<ProjectRecord> => {
+  const cancelledRun: ClassificationRunRecord = { ...run, status: 'cancelled', completedAt: now(), error: detail };
+  await writeJsonAtomically(join(runDirectory, 'run.json'), cancelledRun);
+  return writeProject({
+    ...project,
+    status: restoredStatusAfterInterruption(project, run),
+    activeRunId: run.previousActiveRunId,
+    updatedAt: now()
+  });
+};
+
+const recoverInterruptedClassification = async (project: ProjectRecord): Promise<ProjectRecord> => {
+  if (project.status !== 'processing') return project;
+  const runs = await listRuns(project);
+  const interruptedRun = runs.find((run) => run.status === 'running' && (!project.activeRunId || run.id === project.activeRunId));
+  if (!interruptedRun) {
+    return writeProject({ ...project, status: project.activeRevisionId ? 'review_required' : 'imported', updatedAt: now() });
+  }
+  const runDirectory = join(runsDirectory(project), interruptedRun.id);
+  return cancelClassificationRun(project, interruptedRun, runDirectory, '上次分类因应用关闭或异常中断，已自动结束。可以重新开始分类。');
+};
+
 export const saveReviewRevision = async (project: ProjectRecord, result: PaperResult, summary: string): Promise<ProjectRecord> => {
   if (!project.activeRunId) throw new Error('当前项目没有可供复核的分类结果。');
   const revision = await createResultRevision(project, project.activeRunId, 'review', result, summary, project.activeRevisionId);
@@ -279,8 +315,9 @@ const readPreparation = async (project: ProjectRecord): Promise<ProjectPreparati
   };
 };
 
-export const loadProjectWorkspace = async (appRoot: string, projectId: string): Promise<ProjectWorkspace> => {
-  const project = await readProject(getProjectDirectory(appRoot, projectId));
+export const loadProjectWorkspace = async (appRoot: string, projectId: string, activeClassificationProjectId?: string): Promise<ProjectWorkspace> => {
+  let project = await readProject(getProjectDirectory(appRoot, projectId));
+  if (project.id !== activeClassificationProjectId) project = await recoverInterruptedClassification(project);
   const [preparation, supplements, runs, revisions] = await Promise.all([
     readPreparation(project),
     listSupplementalMaterials(project),
@@ -291,12 +328,13 @@ export const loadProjectWorkspace = async (appRoot: string, projectId: string): 
   return { project, preparation, supplements, runs, revisions: [...revisions].sort((left, right) => right.createdAt.localeCompare(left.createdAt)), result };
 };
 
-export const listProjectSummaries = async (appRoot: string): Promise<ProjectSummary[]> => {
+export const listProjectSummaries = async (appRoot: string, activeClassificationProjectId?: string): Promise<ProjectSummary[]> => {
   await mkdir(getProjectsDirectory(appRoot), { recursive: true });
   const entries = await readdir(getProjectsDirectory(appRoot), { withFileTypes: true });
   const summaries = await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry): Promise<ProjectSummary | undefined> => {
     try {
-      const project = await readProject(getProjectDirectory(appRoot, entry.name));
+      let project = await readProject(getProjectDirectory(appRoot, entry.name));
+      if (project.id !== activeClassificationProjectId) project = await recoverInterruptedClassification(project);
       const [materials, runs, result] = await Promise.all([
         listSupplementalMaterials(project),
         listRuns(project),
@@ -317,6 +355,15 @@ export const listProjectSummaries = async (appRoot: string): Promise<ProjectSumm
     }
   }));
   return summaries.filter((summary): summary is ProjectSummary => Boolean(summary)).sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+};
+
+export const deleteProject = async (appRoot: string, projectId: string): Promise<void> => {
+  if (!projectId || projectId.includes('/') || projectId.includes('\\') || projectId === '.' || projectId === '..') {
+    throw new Error('论文项目标识无效。');
+  }
+  const projectDirectory = getProjectDirectory(appRoot, projectId);
+  await readProject(projectDirectory);
+  await rm(projectDirectory, { recursive: true, force: false, maxRetries: 3, retryDelay: 150 });
 };
 
 export const saveAgentResult = async (project: ProjectRecord, result: PaperResult): Promise<void> => {
