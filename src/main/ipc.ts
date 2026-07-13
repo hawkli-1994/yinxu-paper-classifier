@@ -10,7 +10,7 @@ import { createAgentRun } from './agent-service';
 import { createElectronCredentialVault } from './credentials-service';
 import { exportWorkbook, getWorkbookExportFileName } from './export-service';
 import { getProjectDirectory } from './paths';
-import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pdf-service';
+import { buildTextPreparationReport, countUsableTextCharacters, inspectPdf, writeExtractedText } from './pdf-service';
 import { processPagesWithOcrMode } from './ocr-service';
 import {
   activateResultRevision,
@@ -238,6 +238,12 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         knowledgeVersion: knowledgePackage.version
       });
       const supplements = activeSupplementalMaterials(await listSupplementalMaterials(project));
+      const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
+      const supplementTexts = await Promise.all(supplements.map((material) => readFile(material.extractedTextPath, 'utf8')));
+      const usableCharacterCount = countUsableTextCharacters([paperText, ...supplementTexts]);
+      if (usableCharacterCount < 40) {
+        throw new Error('论文及补充材料未提取到足够的可用文本。请改用云端 OCR 重新导入，或补充可检索的正文材料后再分类。');
+      }
       created = await createClassificationRun(project, {
         agentProvider: settings.agent.provider,
         agentModel: settings.agent.modelId,
@@ -248,7 +254,6 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
       project = created.project;
       const send = (runEvent: Omit<RunEvent, 'projectId' | 'runId'>): void => webContents.send('classification:event', { projectId, runId: created!.run.id, ...runEvent } satisfies RunEvent);
       send({ phase: 'started', detail: `${settings.agent.provider}/${settings.agent.modelId}`, progress: 10 });
-      const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
       const memoryContext = await retrieveMemoryContext(appRoot, paperText, settings.memory);
       const result = await createAgentRun(project, knowledgePackage.path, {
         provider: settings.agent.provider,

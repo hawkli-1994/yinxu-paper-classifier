@@ -72,8 +72,8 @@ const createScannedPaper = async (targetPath: string): Promise<void> => {
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#111111';
   scannedPaperLines.forEach((line, index) => {
-    context.font = index < 2 ? 'bold 39px Arial' : '32px Arial';
-    context.fillText(line, 70, 110 + index * 94);
+    context.font = index < 2 ? 'bold 52px Arial' : '42px Arial';
+    context.fillText(line, 58, 100 + index * 96);
   });
 
   const document = await PDFDocument.create();
@@ -140,6 +140,9 @@ const runClassificationWithRetry = async (
   for (let attempts = 1; attempts <= 2; attempts += 1) {
     let attemptTimedOut = false;
     let attemptTimer: ReturnType<typeof setTimeout> | undefined;
+    const heartbeat = setInterval(() => {
+      console.log(`[${mode}] classification attempt ${attempts} is still running.`);
+    }, 60_000);
     const classification = window.evaluate(
       async (id) => globalThis.window.yinxu.runClassification(id),
       projectId
@@ -183,6 +186,7 @@ const runClassificationWithRetry = async (
       if (!retryable || attempts >= 2) throw error;
       console.warn(`[${mode}] retrying classification after attempt ${attempts}.`);
     } finally {
+      clearInterval(heartbeat);
       if (attemptTimer) clearTimeout(attemptTimer);
     }
   }
@@ -229,21 +233,25 @@ const runClassificationScenario = async (options: {
       });
     }, exportPaths);
 
+    console.log(`[${options.mode}] configuring providers.`);
     const saved = await saveModeSettings(window, options.mode, options.kimiApiKey, options.ocrApiKey);
     expect(saved.hasAgentKey).toBe(true);
     expect(saved.hasOcrKey).toBe(Boolean(options.ocrApiKey));
 
+    console.log(`[${options.mode}] importing and preparing the paper.`);
     const created = await window.evaluate(async (paperPath) =>
       globalThis.window.yinxu.createProject({
         sourcePdfPath: paperPath,
         supplementalFiles: [],
         supplementalNotes: []
       }), options.paperPath);
+    console.log(`[${options.mode}] paper prepared; starting classification.`);
     const classification = await runClassificationWithRetry(window, created.project.id, options.mode);
     const classified = classification.workspace;
     if (!classified.result) throw new Error('Classification completed without a structured result.');
     const completedRun = classified.runs.find((run) => run.status === 'completed');
     if (!completedRun) throw new Error('No completed classification run was recorded.');
+    console.log(`[${options.mode}] classification completed; exporting the workbook.`);
     const workbookPath = await window.evaluate(
       async (projectId) => globalThis.window.yinxu.exportWorkbook(projectId),
       created.project.id

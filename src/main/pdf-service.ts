@@ -24,6 +24,9 @@ export interface PdfInspection {
   pagesNeedingOcr: number[];
 }
 
+export const countUsableTextCharacters = (texts: readonly string[]): number =>
+  texts.join('').replace(/<!-- page:\d+ -->/g, '').replace(/\s/g, '').length;
+
 const textFromPdfPage = async (page: Awaited<ReturnType<Awaited<ReturnType<typeof getDocument>['promise']>['getPage']>>): Promise<string> => {
   const content = await page.getTextContent();
   return content.items

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
 import { inspectPdfBytes } from '../../src/main/pdf-service';
-import { getOcrInputMediaType, ocrPagesIndividually, ocrPdf, processPagesWithOcrMode, RetryableOcrError, retry } from '../../src/main/ocr-service';
+import { getOcrInputMediaType, getOcrInstruction, ocrPagesIndividually, ocrPdf, processPagesWithOcrMode, RetryableOcrError, retry } from '../../src/main/ocr-service';
 
 describe('OCR retry', () => {
   it('uses PNG input for PaddleOCR-VL-1.5 and preserves PDF input for DeepSeek-OCR', () => {
     expect(getOcrInputMediaType('PaddlePaddle/PaddleOCR-VL-1.5')).toBe('image/png');
     expect(getOcrInputMediaType('deepseek-ai/DeepSeek-OCR')).toBe('application/pdf');
+    expect(getOcrInstruction('PaddlePaddle/PaddleOCR-VL-1.5')).toBe('OCR:');
   });
 
   it('retries temporary OCR failures three times', async () => {
@@ -66,8 +67,10 @@ describe('OCR retry', () => {
     page.drawText('Paddle OCR source', { x: 48, y: 780, size: 14, font });
     const originalFetch = globalThis.fetch;
     let imageUrl = '';
+    let instruction = '';
     globalThis.fetch = async (_input, init) => {
-      const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: Array<{ image_url?: { url: string } }> }> };
+      const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: Array<{ text?: string; image_url?: { url: string } }> }> };
+      instruction = body.messages[0]?.content[0]?.text ?? '';
       imageUrl = body.messages[0]?.content[1]?.image_url?.url ?? '';
       return new Response(JSON.stringify({ choices: [{ message: { content: '识别完成' } }] }), { status: 200 });
     };
@@ -83,6 +86,7 @@ describe('OCR retry', () => {
     }
 
     expect(imageUrl).toMatch(/^data:image\/png;base64,/);
+    expect(instruction).toBe('OCR:');
   });
 
   it('treats local mode as a hard no-cloud policy', async () => {

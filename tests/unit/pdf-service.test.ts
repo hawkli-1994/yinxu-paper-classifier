@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
-import { buildTextPreparationReport, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, toPdfJsFactoryUrl, writeExtractedText } from '../../src/main/pdf-service';
+import { buildTextPreparationReport, countUsableTextCharacters, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, toPdfJsFactoryUrl, writeExtractedText } from '../../src/main/pdf-service';
 import { createFixturePdf } from '../fixtures/pdf';
 
 const roots: string[] = [];
@@ -18,6 +18,10 @@ describe('PDF inspection', () => {
       'C:/Program Files/殷墟论文分类助手/resources/app.asar/node_modules/pdfjs-dist/cmaps/'
     );
     expect(toPdfJsFactoryUrl('/opt/app/pdfjs-dist/wasm')).toBe('/opt/app/pdfjs-dist/wasm/');
+  });
+
+  it('does not count page markers or whitespace as usable classification text', () => {
+    expect(countUsableTextCharacters(['<!-- page:1 -->\n  ', '甲骨 卜辞'])).toBe(4);
   });
 
   it('returns extracted text and flags short pages for OCR', async () => {

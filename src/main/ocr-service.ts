@@ -15,6 +15,9 @@ const qualityValidationAttempts = 3;
 export const getOcrInputMediaType = (model: string): 'application/pdf' | 'image/png' =>
   imageOnlyOcrModels.has(model) ? 'image/png' : 'application/pdf';
 
+export const getOcrInstruction = (model: string): string =>
+  imageOnlyOcrModels.has(model) ? 'OCR:' : '请逐页识别这份学术论文，输出保留页码的纯文本。';
+
 export type Delay = (milliseconds: number) => Promise<void>;
 
 const defaultDelay: Delay = async (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -57,7 +60,7 @@ export const ocrPdf = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<s
           {
             role: 'user',
             content: [
-              { type: 'text', text: '请逐页识别这份学术论文，输出保留页码的纯文本。' },
+              { type: 'text', text: getOcrInstruction(config.model) },
               { type: 'image_url', image_url: { url: `data:${mediaType};base64,${Buffer.from(inputBytes).toString('base64')}` } }
             ]
           }
