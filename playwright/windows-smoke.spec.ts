@@ -1,10 +1,11 @@
 import { expect, test, _electron as electron, type Page } from '@playwright/test';
 import { createCanvas } from '@napi-rs/canvas';
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PDFDocument } from '@pdfme/pdf-lib';
+import type { ClassificationRunRecord, CreateProjectInput, ProjectWorkspace } from '../src/shared/contracts';
 
 const classificationAttemptTimeoutMs = 6 * 60_000;
 const classificationCancellationTimeoutMs = 30_000;
@@ -161,6 +162,8 @@ const runClassificationScenario = async (options: {
   paperPath: string;
   kimiApiKey: string;
   ocrApiKey: string;
+  supplementalFiles?: CreateProjectInput['supplementalFiles'];
+  supplementalNotes?: CreateProjectInput['supplementalNotes'];
   verifyPreparation: (preparation: {
     ocrApplied: boolean;
     pagesNeedingOcr: number[];
@@ -174,7 +177,8 @@ const runClassificationScenario = async (options: {
       pages: Array<{ source: 'embedded' | 'ocr' | 'mixed'; characterCount: number; ocrAttempts?: number }>;
     };
   }) => void;
-}): Promise<{ projectId: string; workbookPath: string; window: Page; close: () => Promise<void> }> => {
+  verifySupplements?: (created: ProjectWorkspace, classified: ProjectWorkspace, completedRun: ClassificationRunRecord) => Promise<void> | void;
+}): Promise<{ projectId: string; workbookPath: string; workspace: ProjectWorkspace; window: Page; close: () => Promise<void> }> => {
   const executablePath = process.env.YINXU_SMOKE_EXECUTABLE!;
   const fixtureRoot = await mkdtemp(join(tmpdir(), `yinxu-${options.scenario}-smoke-`));
   const userData = join(fixtureRoot, 'user-data');
@@ -203,12 +207,14 @@ const runClassificationScenario = async (options: {
     expect(saved.hasOcrKey).toBe(true);
 
     console.log(`[${options.scenario}] importing and preparing the paper.`);
-    const created = await window.evaluate(async (paperPath) =>
-      globalThis.window.yinxu.createProject({
-        sourcePdfPath: paperPath,
-        supplementalFiles: [],
-        supplementalNotes: []
-      }), options.paperPath);
+    const created = await window.evaluate(
+      async (input) => globalThis.window.yinxu.createProject(input),
+      {
+        sourcePdfPath: options.paperPath,
+        supplementalFiles: options.supplementalFiles ?? [],
+        supplementalNotes: options.supplementalNotes ?? []
+      }
+    );
     console.log(JSON.stringify({
       stage: 'ocr-only',
       ocrMode: created.preparation.textReport?.ocrMode,
@@ -227,6 +233,7 @@ const runClassificationScenario = async (options: {
     if (!classified.result) throw new Error('Classification completed without a structured result.');
     const completedRun = classified.runs.find((run) => run.status === 'completed');
     if (!completedRun) throw new Error('No completed classification run was recorded.');
+    await options.verifySupplements?.(created, classified, completedRun);
     console.log(`[${options.scenario}] classification completed; exporting the workbook.`);
     const workbookPath = await window.evaluate(
       async (projectId) => globalThis.window.yinxu.exportWorkbook(projectId),
@@ -269,6 +276,7 @@ const runClassificationScenario = async (options: {
     return {
       projectId: outcome.projectId,
       workbookPath: outcome.workbookPath,
+      workspace: classified,
       window,
       close: async () => {
         await app.close();
@@ -307,16 +315,32 @@ test('installed app enforces a single writable instance', async () => {
   }
 });
 
-test('official PaddleOCR cloud pipeline recognizes a scanned PDF and completes classification', async () => {
+test('official PaddleOCR cloud pipeline processes the paper and supplementary materials before classification', async () => {
   const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-paddle-cloud-paper-'));
   const paperPath = join(fixtureRoot, 'scanned-yinxu-paper.pdf');
-  await createScannedPaper(paperPath);
+  const supplementalPdfPath = join(fixtureRoot, 'scanned-yinxu-appendix.pdf');
+  const supplementalTextPath = join(fixtureRoot, 'expert-feedback.txt');
+  await Promise.all([
+    createScannedPaper(paperPath),
+    createScannedPaper(supplementalPdfPath),
+    writeFile(supplementalTextPath, '专家意见：作者信息应以论文署名与补充材料为准，不应根据固定名单推断机构身份。', 'utf8')
+  ]);
   try {
     const scenario = await runClassificationScenario({
       scenario: 'paddle-cloud',
       paperPath,
       kimiApiKey: process.env.KIMI_API_KEY!,
       ocrApiKey: process.env.PADDLEOCR_API_KEY!,
+      supplementalFiles: [
+        { path: supplementalTextPath, kind: 'expert_note', sourceLabel: '测试专家意见' },
+        { path: supplementalPdfPath, kind: 'appendix', sourceLabel: '测试论文附录' }
+      ],
+      supplementalNotes: [{
+        title: '测试手工补充说明',
+        content: '本条说明用于验证补充材料会随本次分类运行生成只读快照。',
+        kind: 'other',
+        sourceLabel: 'Windows 冒烟测试'
+      }],
       verifyPreparation: (preparation) => {
         expect(preparation.textReport?.ocrMode).toBe('cloud');
         expect(preparation.textReport?.ocrProvider).toBe('paddleocr-official');
@@ -328,6 +352,18 @@ test('official PaddleOCR cloud pipeline recognizes a scanned PDF and completes c
         expect(preparation.textReport?.pages[0]?.source).toBe('ocr');
         expect(preparation.textReport?.pages[0]?.characterCount).toBeGreaterThan(40);
         expect(preparation.textReport?.pages[0]?.ocrAttempts).toBeGreaterThanOrEqual(1);
+      },
+      verifySupplements: async (created, _classified, completedRun) => {
+        expect(created.supplements).toHaveLength(3);
+        expect(created.supplements.map((material) => material.sourceType).sort()).toEqual(['file', 'file', 'note']);
+        const pdfSupplement = created.supplements.find((material) => material.originalFileName === 'scanned-yinxu-appendix.pdf');
+        expect(pdfSupplement?.status).not.toBe('failed');
+        expect(completedRun.supplementIds).toHaveLength(3);
+        expect(completedRun.supplementHashes).toHaveLength(3);
+        expect(completedRun.supplementContextPath).toBeTruthy();
+        const context = await readFile(completedRun.supplementContextPath!, 'utf8');
+        expect(context).toContain('专家意见：作者信息应以论文署名与补充材料为准');
+        expect(context).toContain('本条说明用于验证补充材料会随本次分类运行生成只读快照');
       }
     });
 
