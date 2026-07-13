@@ -7,6 +7,7 @@ import {
   completeClassificationRun,
   createClassificationRun,
   createProject,
+  deleteProject,
   listProjectSummaries,
   loadProjectWorkspace,
   readProject,
@@ -53,6 +54,19 @@ describe('project service', () => {
 
     expect(updated.knowledgeVersion).toBe('2.0.1');
     expect((await readProject(updated.rootPath)).knowledgeVersion).toBe('2.0.1');
+  });
+
+  it('permanently deletes a project directory without affecting the imported source file', async () => {
+    const root = await makeRoot();
+    const source = join(root, 'delete-me.pdf');
+    await createFixturePdf(source);
+    const project = await createProject(source, root, '2.3.4');
+
+    await deleteProject(root, project.id);
+
+    await expect(access(project.rootPath)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(access(source)).resolves.toBeUndefined();
+    await expect(listProjectSummaries(root)).resolves.toEqual([]);
   });
 
   it('persists the actual Agent and OCR run metadata for audit export', async () => {
@@ -126,6 +140,27 @@ describe('project service', () => {
 
     const summaries = await listProjectSummaries(root);
     expect(summaries).toMatchObject([{ id: project.id, title: '第一次分类结果', supplementCount: 1, runCount: 2 }]);
+  });
+
+  it('recovers a classification left running after the app was interrupted', async () => {
+    const root = await makeRoot();
+    const source = join(root, 'interrupted.pdf');
+    await createFixturePdf(source);
+    const project = await createProject(source, root, '2.0.1');
+    const created = await createClassificationRun(project, {
+      agentProvider: 'moonshot',
+      agentModel: 'kimi-k2.5',
+      thinkingLevel: 'medium',
+      knowledgeVersion: '2.0.1',
+      ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5'
+    }, []);
+
+    const workspace = await loadProjectWorkspace(root, project.id);
+
+    expect(workspace.project.status).toBe('imported');
+    expect(workspace.project.activeRunId).toBeUndefined();
+    expect(workspace.runs[0]).toMatchObject({ id: created.run.id, status: 'cancelled' });
+    expect(workspace.runs[0]?.error).toContain('应用关闭或异常中断');
   });
 
   it('migrates a legacy project result into an auditable run and revision when reopened', async () => {

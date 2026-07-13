@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Descriptions, Empty, Input, InputNumber, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Col, Descriptions, Empty, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ConfidenceBand, PaperFieldName, PaperResult, ReviewFeedbackInput } from '../../../shared/contracts';
 import { PAPER_FIELD_NAMES } from '../../../shared/contracts';
 import { addReviewEvidence, removeReviewEvidence, updateReviewCrossReferences, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory } from '../../../shared/review-model';
@@ -69,7 +69,12 @@ export const ReviewPage = (): React.JSX.Element => {
   const exportResult = async (): Promise<void> => {
     try {
       const path = await window.yinxu.exportWorkbook(project.id);
-      message.success(`Excel 已导出：${path}`);
+      if (!path) return;
+      Modal.success({
+        title: 'Excel 导出完成',
+        content: <Typography.Text copyable>{path}</Typography.Text>,
+        okText: '知道了'
+      });
     } catch (error) {
       message.error(error instanceof Error ? error.message : '导出失败。');
     }

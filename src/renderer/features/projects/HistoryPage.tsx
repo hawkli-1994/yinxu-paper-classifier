@@ -32,7 +32,7 @@ export const HistoryPage = (): React.JSX.Element => {
                 <List.Item>
                   <List.Item.Meta
                     avatar={run.status === 'completed' ? <CheckCircleOutlined className="history-success-icon" /> : <ClockCircleOutlined />}
-                    title={<Space wrap><Typography.Text strong>任务 {workspace.runs.length - index}</Typography.Text><Tag color={run.status === 'completed' ? 'green' : run.status === 'failed' ? 'red' : 'processing'}>{run.status === 'completed' ? '已完成' : run.status === 'failed' ? '处理失败' : '正在处理'}</Tag></Space>}
+                    title={<Space wrap><Typography.Text strong>任务 {workspace.runs.length - index}</Typography.Text><Tag color={run.status === 'completed' ? 'green' : run.status === 'failed' ? 'red' : run.status === 'cancelled' ? 'orange' : 'processing'}>{run.status === 'completed' ? '已完成' : run.status === 'failed' ? '处理失败' : run.status === 'cancelled' ? '已取消' : '正在处理'}</Tag></Space>}
                     description={<Space orientation="vertical" size={2}><Typography.Text type="secondary">模型：{run.agentProvider}/{run.agentModel} · 分类知识库：v{run.knowledgeVersion}</Typography.Text><Typography.Text type="secondary">补充材料：{run.supplementIds.length} 份 · 开始时间：{new Date(run.startedAt).toLocaleString()}</Typography.Text>{run.error ? <Typography.Text type="danger">{run.error}</Typography.Text> : null}</Space>}
                   />
                 </List.Item>

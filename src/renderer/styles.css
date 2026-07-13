@@ -376,7 +376,7 @@ body {
 
 .project-search {
   flex: 0 0 auto;
-  margin: 0 8px 16px;
+  margin: 0 8px 10px;
   width: auto;
   border-color: rgb(255 255 255 / 24%);
   background: rgb(255 255 255 / 6%);
@@ -391,11 +391,33 @@ body {
   color: #91a8b1;
 }
 
-.project-list-label {
+.project-list-toolbar {
+  display: flex;
   flex: 0 0 auto;
-  padding: 0 10px 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px 8px 10px;
+}
+
+.project-list-label {
   color: #b9c9cf;
   font-size: 12px;
+}
+
+.project-status-filter {
+  width: 102px;
+}
+
+.project-status-filter .ant-select-selector {
+  border-color: rgb(255 255 255 / 18%) !important;
+  background: rgb(255 255 255 / 6%) !important;
+  color: #dce7ea !important;
+}
+
+.project-status-filter .ant-select-arrow {
+  color: #9fb3ba;
 }
 
 .project-list {
@@ -410,18 +432,22 @@ body {
   color: #93a8b1;
 }
 
+.project-list-row {
+  position: relative;
+  margin-bottom: 6px;
+}
+
 .project-list-item {
   display: grid;
   width: 100%;
-  margin-bottom: 7px;
-  padding: 13px 12px;
+  padding: 10px 42px 10px 12px;
   border: 1px solid rgb(255 255 255 / 11%);
   border-radius: 7px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   font: inherit;
-  gap: 4px;
+  gap: 2px;
   text-align: left;
   transition: background 150ms ease, border-color 150ms ease;
 }
@@ -437,6 +463,21 @@ body {
   box-shadow: inset 3px 0 0 #6fc9ba;
 }
 
+.project-delete-button {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  color: #b8c7cc !important;
+  opacity: 0.62;
+}
+
+.project-list-row:hover .project-delete-button,
+.project-delete-button:focus-visible {
+  background: rgb(255 255 255 / 9%) !important;
+  color: #ffb0aa !important;
+  opacity: 1;
+}
+
 .project-list-title {
   overflow: hidden;
   color: #f8f8f6;
@@ -450,6 +491,44 @@ body {
 .project-list-footer {
   color: #b8c7cc;
   font-size: 11px;
+}
+
+.classification-activity-card .ant-card-body {
+  padding-top: 18px;
+}
+
+.classification-activity-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+  padding: 14px 16px;
+  border: 1px solid #d7d1c5;
+  border-radius: 7px;
+  background: #faf8f3;
+}
+
+.classification-activity-summary .ant-badge-status-dot {
+  margin-top: 6px;
+}
+
+.classification-activity-summary .ant-typography-paragraph {
+  margin: 3px 0 0;
+}
+
+.classification-milestones {
+  margin-top: 10px;
+}
+
+.classification-milestones .ant-list-item {
+  gap: 18px;
+  padding-inline: 4px;
+}
+
+.classification-milestone-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
 .project-list-footer {

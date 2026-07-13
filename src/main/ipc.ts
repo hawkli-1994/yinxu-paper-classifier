@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell, type WebContents } from 'electron';
+import { app, dialog, ipcMain, shell, type WebContents } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import type { AppSettings, CreateProjectInput, KnowledgePackage, LocalFileSelection, PaperResult, ProjectPreparation, ProjectRecord, ProjectWorkspace, ReviewFeedbackInput, RunEvent, SettingsInput, SettingsView, SupplementalFileInput, SupplementalNoteInput } from '../shared/contracts';
@@ -8,15 +8,17 @@ import { paperResultToDraft, summarizeReviewChanges } from '../shared/review-mod
 import { isAuthorMetadataOnlyFeedback } from '../shared/feedback-policy';
 import { createAgentRun } from './agent-service';
 import { createElectronCredentialVault } from './credentials-service';
-import { exportWorkbook } from './export-service';
+import { exportWorkbook, getWorkbookExportFileName } from './export-service';
 import { getProjectDirectory } from './paths';
 import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pdf-service';
 import { processPagesWithOcrMode } from './ocr-service';
 import {
   activateResultRevision,
+  cancelClassificationRun,
   completeClassificationRun,
   createClassificationRun,
   createProject,
+  deleteProject,
   failClassificationRun,
   listProjectSummaries,
   loadProjectWorkspace,
@@ -45,7 +47,7 @@ import {
   updatePersonalRule
 } from './memory-service';
 import { activeSupplementalMaterials, addSupplementalFiles, addSupplementalNote, listSupplementalMaterials, removeSupplementalMaterial } from './supplement-service';
-import { acquireClassificationLock, getActiveClassification } from './classification-lock';
+import { acquireClassificationLock, getActiveClassification, requestClassificationCancellation } from './classification-lock';
 
 const getResult = async (project: ProjectRecord): Promise<PaperResult> => {
   if (project.activeRevisionId) return readResultRevision(project, project.activeRevisionId);
@@ -177,8 +179,13 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     return loadProjectWorkspace(appRoot, project.id);
   });
 
-  ipcMain.handle('project:list', async () => listProjectSummaries(appRoot));
-  ipcMain.handle('project:open', async (_event, projectId: string): Promise<ProjectWorkspace> => loadProjectWorkspace(appRoot, projectId));
+  ipcMain.handle('project:list', async () => listProjectSummaries(appRoot, getActiveClassification()?.projectId));
+  ipcMain.handle('project:open', async (_event, projectId: string): Promise<ProjectWorkspace> => loadProjectWorkspace(appRoot, projectId, getActiveClassification()?.projectId));
+  ipcMain.handle('project:delete', async (_event, projectId: string) => {
+    assertProjectNotClassifying(projectId);
+    await deleteProject(appRoot, projectId);
+    return listProjectSummaries(appRoot, getActiveClassification()?.projectId);
+  });
 
   ipcMain.handle('project:get', async (_event, projectId: string): Promise<ProjectRecord> => readProject(getProjectDirectory(appRoot, projectId)));
 
@@ -217,7 +224,8 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const vault = createElectronCredentialVault(appRoot);
     const apiKey = settings.agent.provider ? await vault.get(getAgentCredentialKey(settings.agent)) : undefined;
     if (!settings.agent.provider || !settings.agent.modelId || !apiKey) throw new Error('请先在“设置”中完成模型服务、模型 ID 和 API Key 配置。');
-    const releaseClassificationLock = acquireClassificationLock(projectId, 'pending');
+    const abortController = new AbortController();
+    const releaseClassificationLock = acquireClassificationLock(projectId, 'pending', () => abortController.abort());
     const webContents: WebContents = event.sender;
     let created: Awaited<ReturnType<typeof createClassificationRun>> | undefined;
 
@@ -239,6 +247,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
       }, supplements);
       project = created.project;
       const send = (runEvent: Omit<RunEvent, 'projectId' | 'runId'>): void => webContents.send('classification:event', { projectId, runId: created!.run.id, ...runEvent } satisfies RunEvent);
+      send({ phase: 'started', detail: `${settings.agent.provider}/${settings.agent.modelId}`, progress: 10 });
       const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
       const memoryContext = await retrieveMemoryContext(appRoot, paperText, settings.memory);
       const result = await createAgentRun(project, knowledgePackage.path, {
@@ -251,20 +260,28 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         memoryContext,
         sessionDirectory: created.run.sessionPath,
         supplementContextPath: created.run.supplementContextPath!,
-        shellPath: process.platform === 'win32' ? getBundledGitBashPath() : undefined
+        shellPath: process.platform === 'win32' ? getBundledGitBashPath() : undefined,
+        signal: abortController.signal
       }, send);
       project = await completeClassificationRun(project, created.run, created.runDirectory, result);
       return loadProjectWorkspace(appRoot, project.id);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : '分类失败。';
+      const cancelled = abortController.signal.aborted;
+      const detail = cancelled ? '用户已取消本次分类。' : error instanceof Error ? error.message : '分类失败。';
       if (created) {
-        await failClassificationRun(project, created.run, created.runDirectory, detail);
-        webContents.send('classification:event', { projectId, runId: created.run.id, phase: 'failed', detail } satisfies RunEvent);
+        if (cancelled) await cancelClassificationRun(project, created.run, created.runDirectory, detail);
+        else await failClassificationRun(project, created.run, created.runDirectory, detail);
+        webContents.send('classification:event', { projectId, runId: created.run.id, phase: cancelled ? 'cancelled' : 'failed', detail } satisfies RunEvent);
       }
-      throw error;
+      throw cancelled ? new Error(detail) : error;
     } finally {
       releaseClassificationLock();
     }
+  });
+
+  ipcMain.handle('classification:cancel', async (_event, projectId: string): Promise<ProjectWorkspace> => {
+    await requestClassificationCancellation(projectId);
+    return loadProjectWorkspace(appRoot, projectId);
   });
 
   ipcMain.handle('review:save', async (_event, projectId: string, result: PaperResult, feedback?: ReviewFeedbackInput): Promise<ProjectWorkspace> => {
@@ -305,9 +322,18 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     return loadProjectWorkspace(appRoot, project.id);
   });
 
-  ipcMain.handle('workbook:export', async (_event, projectId: string): Promise<string> => {
+  ipcMain.handle('workbook:export', async (_event, projectId: string): Promise<string | undefined> => {
     const project = await readProject(getProjectDirectory(appRoot, projectId));
-    return exportWorkbook(project, await getResult(project));
+    const result = await getResult(project);
+    const selection = await dialog.showSaveDialog({
+      title: '导出 Excel 分类结果',
+      defaultPath: join(app.getPath('documents'), getWorkbookExportFileName(project, result)),
+      buttonLabel: '保存 Excel',
+      filters: [{ name: 'Excel 工作簿', extensions: ['xlsx'] }],
+      properties: ['showOverwriteConfirmation', 'createDirectory']
+    });
+    if (selection.canceled || !selection.filePath) return undefined;
+    return exportWorkbook(project, result, selection.filePath);
   });
 
   ipcMain.handle('memory:get', async () => getMemorySnapshot(appRoot));

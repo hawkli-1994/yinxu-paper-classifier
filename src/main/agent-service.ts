@@ -26,11 +26,13 @@ export interface AgentModelConfig {
   sessionDirectory: string;
   supplementContextPath: string;
   shellPath?: string;
+  signal?: AbortSignal;
 }
 
 export interface AgentRunEvent {
   phase: 'started' | 'agent' | 'validated' | 'failed';
   detail: string;
+  progress: number;
 }
 
 const buildMemoryPrompt = (memory?: RetrievedMemoryContext): string => {
@@ -166,11 +168,45 @@ export const createAgentRun = async (
     sessionManager: SessionManager.create(project.rootPath, config.sessionDirectory)
   });
 
+  let abortPromise: Promise<void> | undefined;
+  const abortSession = (): Promise<void> => {
+    abortPromise ??= session.abort();
+    return abortPromise;
+  };
+  const handleAbort = (): void => {
+    void abortSession();
+  };
+  config.signal?.addEventListener('abort', handleAbort, { once: true });
+  if (config.signal?.aborted) {
+    await abortSession();
+    throw new Error('用户已取消本次分类。');
+  }
+
+  let agentProgress = 18;
+  let lastAgentDetail = '';
+  const sendAgentStatus = (detail: string, nextProgress: number): void => {
+    agentProgress = Math.max(agentProgress, nextProgress);
+    if (detail === lastAgentDetail) return;
+    lastAgentDetail = detail;
+    onEvent({ phase: 'agent', detail, progress: agentProgress });
+  };
   session.subscribe((event) => {
-    onEvent({ phase: 'agent', detail: event.type });
+    if (event.type === 'agent_start') sendAgentStatus('reasoning', 24);
+    if (event.type === 'tool_execution_start') {
+      if (event.toolName === 'read' || event.toolName === 'ls') sendAgentStatus('reading', 42);
+      else if (event.toolName === 'write') sendAgentStatus('writing', 82);
+      else sendAgentStatus('processing', 58);
+    }
+    if (event.type === 'agent_end') sendAgentStatus(event.willRetry ? 'retrying' : 'finishing', event.willRetry ? 58 : 90);
+    if (event.type === 'auto_retry_start') sendAgentStatus('retrying', 58);
   });
-  onEvent({ phase: 'started', detail: `${config.provider}/${config.modelId}` });
-  await session.prompt(buildClassificationPrompt(project, knowledgePath, config.memoryContext, config.supplementContextPath));
+  onEvent({ phase: 'started', detail: `${config.provider}/${config.modelId}`, progress: 10 });
+  try {
+    await session.prompt(buildClassificationPrompt(project, knowledgePath, config.memoryContext, config.supplementContextPath));
+  } finally {
+    config.signal?.removeEventListener('abort', handleAbort);
+  }
+  if (config.signal?.aborted) throw new Error('用户已取消本次分类。');
 
   const resultPath = join(project.rootPath, 'result', 'agent-result.json');
   const draft = parseAgentDraft(JSON.parse(await readFile(resultPath, 'utf8')));
@@ -189,6 +225,6 @@ export const createAgentRun = async (
     memoryTrace: config.memoryContext?.trace
   });
   await saveAgentResult(project, result);
-  onEvent({ phase: 'validated', detail: '分类结果已通过结构化校验。' });
+  onEvent({ phase: 'validated', detail: '分类结果已通过结构化校验。', progress: 100 });
   return result;
 };
