@@ -1,11 +1,11 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { createCanvas } from '@napi-rs/canvas';
 import { PDFDocument } from '@pdfme/pdf-lib';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import mupdf from 'mupdf';
 import type { PageText, TextPreparationReport } from '../shared/contracts';
+import './pdfjs-node-compat';
+import type { PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const pdfJsRoot = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
 export const toPdfJsFactoryUrl = (directory: string): string => `${directory.replace(/\\/g, '/').replace(/\/+$/, '')}/`;
@@ -24,7 +24,14 @@ export interface PdfInspection {
   pagesNeedingOcr: number[];
 }
 
-const textFromPdfPage = async (page: Awaited<ReturnType<Awaited<ReturnType<typeof getDocument>['promise']>['getPage']>>): Promise<string> => {
+export const countUsableTextCharacters = (texts: readonly string[]): number =>
+  texts.join('').replace(/<!-- page:\d+ -->/g, '').replace(/\s/g, '').length;
+
+let pdfJsModule: Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> | undefined;
+const loadPdfJs = (): Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> =>
+  (pdfJsModule ??= import('pdfjs-dist/legacy/build/pdf.mjs'));
+
+const textFromPdfPage = async (page: PDFPageProxy): Promise<string> => {
   const content = await page.getTextContent();
   return content.items
     .map((item) => {
@@ -47,7 +54,7 @@ const embeddedTextScore = (text: string): number => {
   const compactLength = text.replace(/\s/g, '').length;
   const chineseCharacters = text.match(/[\u3400-\u9fff]/g)?.length ?? 0;
   const replacementCharacters = text.match(/[�]/g)?.length ?? 0;
-  const modelTokens = text.match(/<\|(?:LOC|REF|end)[^>]*\|>/gi)?.length ?? 0;
+  const modelTokens = text.match(/<\|(?:LOC|REF|DET|end|begin|grounding)[^>]*\|>/gi)?.length ?? 0;
   return compactLength + chineseCharacters * 0.25 - replacementCharacters * 25 - modelTokens * 250;
 };
 
@@ -83,6 +90,7 @@ export const inspectPdfBytes = async (content: Uint8Array): Promise<PdfInspectio
   } catch {
     // PDF.js remains the primary extractor; malformed or encrypted PDFs may not open in MuPDF.
   }
+  const { getDocument } = await loadPdfJs();
   const loadingTask = getDocument({ data: new Uint8Array(content), ...pdfJsDocumentOptions });
   const document = await loadingTask.promise;
   const pageCount = document.numPages;
@@ -118,25 +126,6 @@ export const extractSinglePagePdf = async (content: Uint8Array, pageNumber: numb
   return target.save();
 };
 
-/** Renders an isolated PDF page for OCR providers that accept images but not PDF data URLs. */
-export const renderPdfPageToPng = async (content: Uint8Array, pageNumber = 1, scale = 2): Promise<Uint8Array> => {
-  const loadingTask = getDocument({ data: new Uint8Array(content), ...pdfJsDocumentOptions });
-  const document = await loadingTask.promise;
-  try {
-    if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > document.numPages) {
-      throw new Error(`PDF 页码超出范围：${pageNumber}。`);
-    }
-    const page = await document.getPage(pageNumber);
-    const viewport = page.getViewport({ scale });
-    const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-    const context = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
-    await page.render({ canvas: null, canvasContext: context, viewport }).promise;
-    return new Uint8Array(canvas.toBuffer('image/png'));
-  } finally {
-    await loadingTask.destroy();
-  }
-};
-
 export const buildTextPreparationReport = (pages: readonly PageText[], ocrAppliedPages: readonly number[]): TextPreparationReport => {
   const ocrSet = new Set(ocrAppliedPages);
   const documentChineseCharacterCount = pages.reduce((total, page) => total + (page.text.match(/[\u3400-\u9fff]/g)?.length ?? 0), 0);
@@ -146,10 +135,12 @@ export const buildTextPreparationReport = (pages: readonly PageText[], ocrApplie
     const source = page.source ?? (ocrSet.has(page.page) ? 'ocr' : 'embedded');
     const chineseCharacterCount = page.text.match(/[\u3400-\u9fff]/g)?.length ?? 0;
     const latinCharacterCount = page.text.match(/[A-Za-z]/g)?.length ?? 0;
-    const modelArtifactCount = page.text.match(/<\|(?:LOC|REF|end)[^>]*\|>|�/gi)?.length ?? 0;
-    const qualityFlags: Array<'too_short' | 'language_mismatch' | 'model_artifact'> = [];
+    const modelArtifactCount = page.text.match(/<\|(?:LOC|REF|DET|end|begin|grounding)[^>]*\|>|�/gi)?.length ?? 0;
+    const hasExcessiveRepetition = (source === 'ocr' || source === 'mixed') && (/(.)\1{11,}/u.test(page.text) || /(.{2,12})\1{7,}/u.test(page.text));
+    const qualityFlags: Array<'too_short' | 'language_mismatch' | 'model_artifact' | 'excessive_repetition'> = [];
     if (characterCount < 40) qualityFlags.push('too_short');
     if (modelArtifactCount > 0) qualityFlags.push('model_artifact');
+    if (hasExcessiveRepetition) qualityFlags.push('excessive_repetition');
     if (
       expectsChineseText &&
       (source === 'ocr' || source === 'mixed') &&
@@ -158,7 +149,16 @@ export const buildTextPreparationReport = (pages: readonly PageText[], ocrApplie
     ) {
       qualityFlags.push('language_mismatch');
     }
-    return { page: page.page, source, characterCount, needsReview: qualityFlags.length > 0, qualityFlags };
+    return {
+      page: page.page,
+      source,
+      characterCount,
+      needsReview: qualityFlags.length > 0,
+      qualityFlags,
+      ocrTraceId: page.ocrTraceId,
+      ocrFinishReason: page.ocrFinishReason,
+      ocrAttempts: page.ocrAttempts
+    };
   });
   const emptyPages = pageReports.filter((page) => page.characterCount === 0).map((page) => page.page);
   const quality = pages.length === 0 ? 'unknown' : pageReports.some((page) => page.needsReview) ? 'low' : 'high';

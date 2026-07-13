@@ -1,5 +1,26 @@
-import type { OcrMode, PageText } from '../shared/contracts';
-import { buildTextPreparationReport, extractSinglePagePdf, renderPdfPageToPng } from './pdf-service';
+import {
+  AuthError,
+  InvalidRequestError,
+  Model,
+  NetworkError,
+  PaddleOCRAPIError,
+  PaddleOCRClient,
+  PollTimeoutError,
+  RateLimitError,
+  RequestTimeoutError,
+  ServiceUnavailableError,
+  type DocParsingRequest,
+  type DocParsingResult
+} from '@paddleocr/api-sdk';
+import {
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
+  PADDLE_OCR_PIPELINE_PROFILE,
+  type PageText
+} from '../shared/contracts';
+
+const OCR_REQUEST_TIMEOUT_MS = 300_000;
+const OCR_JOB_TIMEOUT_MS = 600_000;
 
 export class RetryableOcrError extends Error {}
 
@@ -8,12 +29,6 @@ export interface OcrConfig {
   apiKey: string;
   model: string;
 }
-
-const imageOnlyOcrModels = new Set(['PaddlePaddle/PaddleOCR-VL-1.5']);
-const qualityValidationAttempts = 3;
-
-export const getOcrInputMediaType = (model: string): 'application/pdf' | 'image/png' =>
-  imageOnlyOcrModels.has(model) ? 'image/png' : 'application/pdf';
 
 export type Delay = (milliseconds: number) => Promise<void>;
 
@@ -27,158 +42,142 @@ export const retry = async <T>(operation: () => Promise<T>, maxAttempts = 3, del
     } catch (error) {
       lastError = error;
       if (!(error instanceof RetryableOcrError) || attempt === maxAttempts) throw error;
-      await delay(250 * 2 ** (attempt - 1));
+      await delay(500 * 2 ** (attempt - 1));
     }
   }
   throw lastError;
 };
 
-const getMessageText = (payload: unknown): string | undefined => {
-  if (!payload || typeof payload !== 'object') return undefined;
-  const choices = (payload as { choices?: unknown }).choices;
-  if (!Array.isArray(choices) || choices.length === 0) return undefined;
-  const content = (choices[0] as { message?: { content?: unknown } }).message?.content;
-  return typeof content === 'string' ? content : undefined;
-};
-
-export const ocrPdf = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<string> =>
-  retry(async () => {
-    const mediaType = getOcrInputMediaType(config.model);
-    const inputBytes = mediaType === 'image/png' ? await renderPdfPageToPng(pdfBytes) : pdfBytes;
-    const response = await fetch(`${config.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: '请逐页识别这份学术论文，输出保留页码的纯文本。' },
-              { type: 'image_url', image_url: { url: `data:${mediaType};base64,${Buffer.from(inputBytes).toString('base64')}` } }
-            ]
-          }
-        ]
-      })
-    });
-
-    if (response.status === 429 || response.status >= 500) throw new RetryableOcrError(`OCR request failed: ${response.status}`);
-    if (!response.ok) throw new Error(`云端 OCR 请求失败，服务返回状态码 ${response.status}。`);
-    const text = getMessageText(await response.json());
-    if (!text) throw new RetryableOcrError('云端 OCR 未返回可用文本。');
-    return text;
-  });
-
-export type OcrRecognizer = (pdfBytes: Uint8Array, config: OcrConfig) => Promise<string>;
-
-export const ocrPagesIndividually = async (
-  pdfBytes: Uint8Array,
-  pages: readonly PageText[],
-  pagesNeedingOcr: readonly number[],
-  config: OcrConfig,
-  recognize: OcrRecognizer = ocrPdf,
-  mergeOriginal = true
-): Promise<PageText[]> => {
-  const replacements = new Map<number, PageText>();
-  for (const pageNumber of pagesNeedingOcr) {
-    const singlePagePdf = await extractSinglePagePdf(pdfBytes, pageNumber);
-    const text = (await recognize(singlePagePdf, config)).trim();
-    const original = pages.find((page) => page.page === pageNumber);
-    replacements.set(pageNumber, {
-      page: pageNumber,
-      text: mergeOriginal && original?.text.trim() ? `${original.text.trim()}\n${text}`.trim() : text,
-      source: mergeOriginal && original?.text.trim() ? 'mixed' : 'ocr'
-    });
+export const PADDLE_DOCUMENT_PARSING_REQUEST = {
+  model: Model.PaddleOCRVL16,
+  options: {
+    useLayoutDetection: true,
+    useChartRecognition: true,
+    temperature: 0,
+    prettifyMarkdown: true
   }
-  return pages.map((page) => replacements.get(page.page) ?? page);
+} satisfies Pick<DocParsingRequest, 'model' | 'options'>;
+
+export interface PaddleDocumentParser {
+  parseDocument(request: DocParsingRequest): Promise<DocParsingResult>;
+}
+
+export type PaddleClientFactory = (config: OcrConfig) => PaddleDocumentParser;
+
+const createOfficialPaddleClient: PaddleClientFactory = (config) => new PaddleOCRClient({
+  token: config.apiKey,
+  baseUrl: PADDLE_OCR_BASE_URL,
+  requestTimeout: OCR_REQUEST_TIMEOUT_MS,
+  pollTimeout: OCR_JOB_TIMEOUT_MS
+});
+
+const providerErrorDetail = (error: unknown): string =>
+  error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/u, '').trim().slice(0, 300) : String(error).slice(0, 300);
+
+const callOfficialPaddleApi = async (
+  filePath: string,
+  config: OcrConfig,
+  createClient: PaddleClientFactory
+): Promise<DocParsingResult> => {
+  try {
+    return await createClient(config).parseDocument({
+      filePath,
+      ...PADDLE_DOCUMENT_PARSING_REQUEST
+    });
+  } catch (error) {
+    if (
+      error instanceof RateLimitError ||
+      error instanceof ServiceUnavailableError ||
+      error instanceof NetworkError ||
+      error instanceof RequestTimeoutError ||
+      error instanceof PollTimeoutError
+    ) {
+      throw new RetryableOcrError(`PaddleOCR 官方云端服务暂时不可用：${providerErrorDetail(error)}`);
+    }
+    if (error instanceof AuthError) {
+      throw new Error('PaddleOCR 官方 Access Token 无效或已失效，请在“设置”中更新后重试。');
+    }
+    if (error instanceof InvalidRequestError) {
+      throw new Error(`PaddleOCR 官方云端请求无效：${providerErrorDetail(error)}`);
+    }
+    if (error instanceof PaddleOCRAPIError) {
+      throw new Error(`PaddleOCR 官方云端识别失败：${providerErrorDetail(error)}`);
+    }
+    throw error;
+  }
 };
 
-export interface OcrModeProcessingInput {
-  mode: OcrMode;
-  pdfBytes: Uint8Array;
+/** Uses PaddleOCR's official TypeScript SDK and hosted document-parsing API. */
+export const parsePdfWithOfficialPaddle = async (
+  filePath: string,
+  config: OcrConfig,
+  createClient: PaddleClientFactory = createOfficialPaddleClient
+): Promise<DocParsingResult> => {
+  if (config.baseUrl.replace(/\/+$/, '') !== PADDLE_OCR_BASE_URL) {
+    throw new Error('OCR 服务地址必须使用 PaddleOCR 官方云端接口。');
+  }
+  if (config.model !== PADDLE_OCR_MODEL_ID) {
+    throw new Error(`当前版本仅支持 ${PADDLE_OCR_MODEL_ID} 官方云端文档解析。`);
+  }
+  if (!config.apiKey.trim()) {
+    throw new Error('导入 PDF 前必须配置 PaddleOCR 官方 Access Token。');
+  }
+  return retry(() => callOfficialPaddleApi(filePath, config, createClient));
+};
+
+const artifactPattern = /<\|(?:LOC|REF|DET|end|begin|grounding)[^>]*\|>|�/i;
+const hasExcessiveRepetition = (text: string): boolean => /(.)\1{11,}/u.test(text) || /(.{2,12})\1{7,}/u.test(text);
+
+export interface CloudOcrProcessingInput {
+  filePath: string;
   pages: readonly PageText[];
-  pagesNeedingOcr: readonly number[];
   config?: OcrConfig;
 }
 
-export interface OcrModeProcessingResult {
+export interface CloudOcrProcessingResult {
   pages: PageText[];
   cloudAttemptedPages: number[];
   cloudAppliedPages: number[];
-  localFallbackPages: number[];
 }
 
-const recognizePageWithQualityValidation = async (
-  pdfBytes: Uint8Array,
-  pages: readonly PageText[],
-  pageNumber: number,
-  config: OcrConfig,
-  recognize: OcrRecognizer
-): Promise<PageText[] | undefined> => {
-  for (let attempt = 1; attempt <= qualityValidationAttempts; attempt += 1) {
-    const candidatePages = await ocrPagesIndividually(pdfBytes, pages, [pageNumber], config, recognize, false);
-    const pageReport = buildTextPreparationReport(candidatePages, [pageNumber]).pages.find((page) => page.page === pageNumber);
-    if (pageReport && !pageReport.needsReview) return candidatePages;
+export type PaddleDocumentRecognizer = (filePath: string, config: OcrConfig) => Promise<DocParsingResult>;
+
+/** Every PDF page is parsed by PaddleOCR's official hosted service. There is no local fallback. */
+export const processPagesWithCloudOcr = async (
+  input: CloudOcrProcessingInput,
+  recognize: PaddleDocumentRecognizer = parsePdfWithOfficialPaddle
+): Promise<CloudOcrProcessingResult> => {
+  if (!input.config?.apiKey) throw new Error('导入 PDF 前必须配置 PaddleOCR 官方 Access Token。');
+  const pageNumbers = input.pages.map((page) => page.page);
+  const result = await recognize(input.filePath, input.config);
+  if (result.pages.length !== pageNumbers.length) {
+    throw new Error(`PaddleOCR 官方云端返回 ${result.pages.length} 页，但原 PDF 共 ${pageNumbers.length} 页，已停止导入。`);
   }
-  return undefined;
+
+  const pages = result.pages.map((page, index): PageText => {
+    const text = page.markdownText.trim();
+    if (artifactPattern.test(text) || hasExcessiveRepetition(text)) {
+      throw new Error(`第 ${index + 1} 页的 PaddleOCR 结果包含异常控制符或明显重复，已停止导入以避免使用错误文本。`);
+    }
+    return {
+      page: pageNumbers[index]!,
+      text,
+      source: 'ocr',
+      ocrTraceId: result.jobId,
+      ocrFinishReason: 'completed',
+      ocrAttempts: 1
+    };
+  });
+
+  return {
+    pages,
+    cloudAttemptedPages: pageNumbers,
+    cloudAppliedPages: pages.map((page) => page.page)
+  };
 };
 
-/** Applies the user's OCR choice as a hard execution policy. */
-export const processPagesWithOcrMode = async (
-  input: OcrModeProcessingInput,
-  recognize: OcrRecognizer = ocrPdf
-): Promise<OcrModeProcessingResult> => {
-  if (input.mode === 'local') {
-    return {
-      pages: [...input.pages],
-      cloudAttemptedPages: [],
-      cloudAppliedPages: [],
-      localFallbackPages: [...input.pagesNeedingOcr]
-    };
-  }
-
-  if (input.mode === 'cloud') {
-    if (!input.config?.apiKey) throw new Error('云端 OCR 模式必须先配置 OCR API Key。');
-    const pageNumbers = input.pages.map((page) => page.page);
-    const pages = await ocrPagesIndividually(input.pdfBytes, input.pages, pageNumbers, input.config, recognize, false);
-    return {
-      pages,
-      cloudAttemptedPages: pageNumbers,
-      cloudAppliedPages: pageNumbers,
-      localFallbackPages: []
-    };
-  }
-
-  if (!input.config?.apiKey || input.pagesNeedingOcr.length === 0) {
-    return {
-      pages: [...input.pages],
-      cloudAttemptedPages: [],
-      cloudAppliedPages: [],
-      localFallbackPages: [...input.pagesNeedingOcr]
-    };
-  }
-
-  let pages = [...input.pages];
-  const cloudAttemptedPages: number[] = [];
-  const cloudAppliedPages: number[] = [];
-  const localFallbackPages: number[] = [];
-  for (const pageNumber of input.pagesNeedingOcr) {
-    cloudAttemptedPages.push(pageNumber);
-    try {
-      const candidatePages = await recognizePageWithQualityValidation(input.pdfBytes, pages, pageNumber, input.config, recognize);
-      if (!candidatePages) {
-        localFallbackPages.push(pageNumber);
-        continue;
-      }
-      pages = candidatePages;
-      cloudAppliedPages.push(pageNumber);
-    } catch {
-      localFallbackPages.push(pageNumber);
-    }
-  }
-
-  return { pages, cloudAttemptedPages, cloudAppliedPages, localFallbackPages };
+export const OCR_AUDIT_METADATA = {
+  provider: 'paddleocr-official' as const,
+  model: PADDLE_OCR_MODEL_ID,
+  promptProfile: PADDLE_OCR_PIPELINE_PROFILE
 };

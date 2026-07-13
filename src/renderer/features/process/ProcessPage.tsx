@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Empty, List, Popconfirm, Progress, Space, Steps, Tag, Typography, message } from 'antd';
+import { PADDLE_OCR_MODEL_ID } from '../../../shared/contracts';
 import { useAppStore } from '../../store';
 
 const phaseLabels = ['准备任务', '读取与分析', '生成结果', '校验完成'];
@@ -72,7 +73,7 @@ export const ProcessPage = (): React.JSX.Element => {
   };
 
   if (!project || !preparation) return <Empty description="请先创建论文项目并导入主论文" />;
-  const ocrMode = preparation.ocrMode ?? preparation.textReport?.ocrMode ?? 'auto';
+  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'paddleocr-official' && preparation.textReport?.ocrModel === PADDLE_OCR_MODEL_ID;
   const failedEvent = projectEvents.find((event) => event.phase === 'failed');
   const cancelledEvent = projectEvents.find((event) => event.phase === 'cancelled');
   const validated = projectEvents.some((event) => event.phase === 'validated');
@@ -111,7 +112,7 @@ export const ProcessPage = (): React.JSX.Element => {
           <Alert className="section-alert" type="warning" showIcon message={latestSavedRun.error ?? '上一次分类已取消，可以重新开始。'} />
         ) : null}
         <Space wrap>
-          <Button type="primary" loading={isRunning && !cancelling} disabled={isRunning} onClick={() => void run()}>{workspace?.runs.length ? '重新进行 AI 分类' : '开始 AI 分类'}</Button>
+          <Button type="primary" loading={isRunning && !cancelling} disabled={isRunning || !isCurrentCloudOcr} onClick={() => void run()}>{workspace?.runs.length ? '重新进行 AI 分类' : '开始 AI 分类'}</Button>
           {isRunning ? (
             <Popconfirm title="确定取消本次分类吗？" description="已生成的历史结果不会受影响，之后可以重新开始分类。" okText="取消任务" cancelText="继续处理" onConfirm={() => void cancel()}>
               <Button danger loading={cancelling}>取消本次分类</Button>
@@ -119,14 +120,12 @@ export const ProcessPage = (): React.JSX.Element => {
           ) : null}
         </Space>
       </Card>
-      {!preparation.ocrApplied && preparation.pagesNeedingOcr.length > 0 ? (
+      {!isCurrentCloudOcr ? (
         <Alert
           className="section-alert"
           type="warning"
           showIcon
-          message={ocrMode === 'local'
-            ? '本地解析发现部分页面文本不完整。本地模式不会使用云端 OCR，请核对相关页面，或更改 OCR 模式后重新导入论文。'
-            : '部分页面文本不完整，云端 OCR 也未返回有效结果。请检查 OCR API Key、网络连接和原始页面，然后重新导入论文。'}
+          message="当前项目的云端 OCR 数据不完整或与当前模型不一致。请重新导入论文后再开始分类。"
         />
       ) : null}
       {preparation.textReport?.quality === 'low' ? <Alert className="section-alert" type="error" showIcon message="OCR 文本质量较低。可以继续分类，但结果将标记为需要人工复核。建议先在“论文资料”页核对相关页面。" /> : null}

@@ -1,8 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import type { ProjectRecord, SupplementalFileInput, SupplementalMaterialRecord, SupplementalNoteInput } from '../shared/contracts';
-import { inspectPdf } from './pdf-service';
 
 const ALLOWED_EXTENSIONS = new Set(['.pdf', '.txt', '.md']);
 const MAX_SUPPLEMENT_BYTES = 200 * 1024 * 1024;
@@ -28,23 +27,32 @@ const saveManifest = async (project: ProjectRecord, materials: SupplementalMater
   await rename(temporaryPath, targetPath);
 };
 
-const extractSupplementText = async (path: string, extension: string): Promise<{ text: string; status: SupplementalMaterialRecord['status']; statusDetail?: string }> => {
+export type SupplementalPdfExtractor = (path: string) => Promise<{
+  text: string;
+  status: SupplementalMaterialRecord['status'];
+  statusDetail?: string;
+}>;
+
+const extractSupplementText = async (
+  path: string,
+  extension: string,
+  extractPdf?: SupplementalPdfExtractor
+): Promise<{ text: string; status: SupplementalMaterialRecord['status']; statusDetail?: string }> => {
   if (extension === '.pdf') {
-    const inspection = await inspectPdf(path);
-    return {
-      text: inspection.pages.map((page) => `<!-- supplement-page:${page.page} -->\n${page.text}`).join('\n\n'),
-      status: inspection.pagesNeedingOcr.length > 0 ? 'needs_review' : 'ready',
-      statusDetail: inspection.pagesNeedingOcr.length > 0 ? `第 ${inspection.pagesNeedingOcr.join('、')} 页文本较少，可能需要人工核验。` : undefined
-    };
+    if (!extractPdf) throw new Error('PDF 补充材料必须使用云端 OCR 识别。');
+    return extractPdf(path);
   }
   return { text: await readFile(path, 'utf8'), status: 'ready' };
 };
 
 export const addSupplementalFiles = async (
   project: ProjectRecord,
-  inputs: readonly SupplementalFileInput[]
+  inputs: readonly SupplementalFileInput[],
+  extractPdf?: SupplementalPdfExtractor
 ): Promise<SupplementalMaterialRecord[]> => {
   const current = await listSupplementalMaterials(project);
+  const additions: SupplementalMaterialRecord[] = [];
+  const createdPaths: string[] = [];
   const filesDirectory = join(supplementsDirectory(project), 'files');
   const extractedDirectory = join(supplementsDirectory(project), 'extracted');
   await Promise.all([mkdir(filesDirectory, { recursive: true }), mkdir(extractedDirectory, { recursive: true })]);
@@ -60,14 +68,20 @@ export const addSupplementalFiles = async (
     const storedPath = join(filesDirectory, `${id}${extension}`);
     const extractedTextPath = join(extractedDirectory, `${id}.md`);
     await copyFile(input.path, storedPath);
+    createdPaths.push(storedPath);
     let extraction: Awaited<ReturnType<typeof extractSupplementText>>;
     try {
-      extraction = await extractSupplementText(storedPath, extension);
+      extraction = await extractSupplementText(storedPath, extension, extractPdf);
     } catch (error) {
+      if (extension === '.pdf') {
+        await Promise.all(createdPaths.map((path) => rm(path, { force: true })));
+        throw error;
+      }
       extraction = { text: '', status: 'failed', statusDetail: error instanceof Error ? error.message : '补充材料文本提取失败。' };
     }
     await writeFile(extractedTextPath, extraction.text, 'utf8');
-    current.push({
+    createdPaths.push(extractedTextPath);
+    additions.push({
       id,
       kind: input.kind,
       sourceType: 'file',
@@ -83,8 +97,9 @@ export const addSupplementalFiles = async (
       createdAt: now()
     });
   }
-  await saveManifest(project, current);
-  return current;
+  const next = [...current, ...additions];
+  await saveManifest(project, next);
+  return next;
 };
 
 export const addSupplementalNote = async (
@@ -130,4 +145,4 @@ export const removeSupplementalMaterial = async (project: ProjectRecord, materia
 };
 
 export const activeSupplementalMaterials = (materials: readonly SupplementalMaterialRecord[]): SupplementalMaterialRecord[] =>
-  materials.filter((material) => !material.removedAt);
+  materials.filter((material) => !material.removedAt && material.status !== 'failed');

@@ -79,14 +79,14 @@ describe('project service', () => {
       agentProvider: 'deepseek',
       agentModel: 'deepseek-chat',
       thinkingLevel: 'medium',
-      ocrModel: 'deepseek-ai/DeepSeek-OCR'
+      ocrModel: 'PaddleOCR-VL-1.6'
     });
 
     expect(await readProject(project.rootPath)).toMatchObject({
       agentProvider: 'deepseek',
       agentModel: 'deepseek-chat',
       thinkingLevel: 'medium',
-      ocrModel: 'deepseek-ai/DeepSeek-OCR'
+      ocrModel: 'PaddleOCR-VL-1.6'
     });
   });
 
@@ -106,7 +106,7 @@ describe('project service', () => {
       agentModel: 'kimi-k2.5',
       thinkingLevel: 'medium' as const,
       knowledgeVersion: '2.0.1',
-      ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5'
+      ocrModel: 'PaddleOCR-VL-1.6'
     };
 
     const first = await createClassificationRun(project, metadata, materials);
@@ -152,7 +152,7 @@ describe('project service', () => {
       agentModel: 'kimi-k2.5',
       thinkingLevel: 'medium',
       knowledgeVersion: '2.0.1',
-      ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5'
+      ocrModel: 'PaddleOCR-VL-1.6'
     }, []);
 
     const workspace = await loadProjectWorkspace(root, project.id);

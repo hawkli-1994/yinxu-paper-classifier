@@ -1,6 +1,6 @@
 {
   "name": "yinxu-paper-classifier",
-  "version": "0.5.2",
+  "version": "0.5.6",
   "description": "殷墟论文分类助手 Windows 单机版",
   "main": "out/main/index.js",
   "type": "module",
@@ -14,14 +14,15 @@
     "test:e2e": "npm run build && playwright test",
     "test:smoke:win": "playwright test --config playwright.windows.config.ts",
     "evaluate:quality": "tsx tests/quality/evaluate.ts",
-    "prepare:win-native": "node scripts/prepare-win-native.mjs",
     "prepare:git-bash": "node scripts/prepare-git-bash.mjs",
-    "prepare:win-runtime": "npm run prepare:win-native && npm run prepare:git-bash",
+    "prepare:win-runtime": "npm run prepare:git-bash",
     "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64 --publish never"
   },
   "dependencies": {
-    "@napi-rs/canvas": "1.0.2",
     "@earendil-works/pi-coding-agent": "latest",
+    "@napi-rs/canvas": "1.0.2",
+    "@napi-rs/canvas-win32-x64-msvc": "^1.0.2",
+    "@paddleocr/api-sdk": "^0.2.3",
     "@pdfme/pdf-lib": "latest",
     "ajv": "latest",
     "antd": "latest",
@@ -31,9 +32,6 @@
     "react": "latest",
     "react-dom": "latest",
     "zustand": "latest"
-  },
-  "optionalDependencies": {
-    "@napi-rs/canvas-win32-x64-msvc": "1.0.2"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "latest",
@@ -79,11 +77,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

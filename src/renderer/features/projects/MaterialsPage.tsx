@@ -1,7 +1,7 @@
 import { DeleteOutlined, FileAddOutlined, FilePdfOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Descriptions, Empty, Form, Input, List, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
 import { useState } from 'react';
-import type { LocalFileSelection, SupplementKind, SupplementalFileInput, SupplementalNoteInput } from '../../../shared/contracts';
+import { PADDLE_OCR_MODEL_ID, type LocalFileSelection, type SupplementKind, type SupplementalFileInput, type SupplementalNoteInput } from '../../../shared/contracts';
 import { useAppStore } from '../../store';
 
 const kindLabels: Record<SupplementKind, string> = {
@@ -13,7 +13,6 @@ const kindLabels: Record<SupplementKind, string> = {
 };
 const kindOptions = Object.entries(kindLabels).map(([value, label]) => ({ value, label }));
 const formatBytes = (size: number): string => size >= 1024 * 1024 ? `${(size / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`;
-const ocrModeLabels = { auto: '自动', local: '本地', cloud: '云端' } as const;
 
 interface PendingFile extends LocalFileSelection {
   kind: SupplementKind;
@@ -32,7 +31,8 @@ export const MaterialsPage = (): React.JSX.Element => {
 
   if (!workspace) return <Empty description="请选择论文项目" />;
   const { project, preparation } = workspace;
-  const ocrMode = preparation.ocrMode ?? preparation.textReport?.ocrMode ?? 'auto';
+  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'paddleocr-official' && preparation.textReport?.ocrModel === PADDLE_OCR_MODEL_ID;
+  const ocrModelLabel = isCurrentCloudOcr ? 'PaddleOCR-VL-1.6（官方云端）' : '未使用当前 OCR 流程';
   const cloudAttemptedCount = preparation.textReport?.cloudAttemptedPages?.length ?? preparation.textReport?.ocrAppliedPages.length ?? 0;
   const cloudAppliedCount = preparation.textReport?.ocrAppliedPages.length ?? 0;
   const supplements = workspace.supplements.filter((material) => !material.removedAt);
@@ -99,9 +99,9 @@ export const MaterialsPage = (): React.JSX.Element => {
             <Typography.Text type="secondary">{preparation.pageCount} 页 · 文本提取质量：{preparation.textReport?.quality === 'high' ? '良好' : preparation.textReport?.quality === 'low' ? '需要复核' : '未检测'}</Typography.Text>
           </div>
           <Space wrap>
-            <Tag color={ocrMode === 'cloud' ? 'blue' : ocrMode === 'local' ? 'green' : 'geekblue'}>OCR：{ocrModeLabels[ocrMode]}</Tag>
+            <Tag color={isCurrentCloudOcr ? 'blue' : 'orange'}>OCR：{ocrModelLabel}</Tag>
             <Tag color={cloudAttemptedCount > 0 ? 'green' : 'default'}>
-              {cloudAttemptedCount > 0 ? `提交云端识别 ${cloudAttemptedCount} 页 · 采用 ${cloudAppliedCount} 页` : '未使用云端 OCR'}
+              {cloudAttemptedCount > 0 ? `云端识别 ${cloudAttemptedCount} 页 · 写入 ${cloudAppliedCount} 页` : '尚无新版云端 OCR 记录'}
             </Tag>
             <Tag color={preparation.textReport?.quality === 'low' ? 'orange' : 'green'}>{preparation.textReport?.quality === 'low' ? '需要核验' : '资料已就绪'}</Tag>
           </Space>

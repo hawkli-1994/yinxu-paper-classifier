@@ -1,7 +1,25 @@
 import { app, dialog, ipcMain, shell, type WebContents } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import type { AppSettings, CreateProjectInput, KnowledgePackage, LocalFileSelection, PaperResult, ProjectPreparation, ProjectRecord, ProjectWorkspace, ReviewFeedbackInput, RunEvent, SettingsInput, SettingsView, SupplementalFileInput, SupplementalNoteInput } from '../shared/contracts';
+import {
+  PADDLE_OCR_ACCESS_TOKEN_URL,
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
+  type AppSettings,
+  type CreateProjectInput,
+  type KnowledgePackage,
+  type LocalFileSelection,
+  type PaperResult,
+  type ProjectPreparation,
+  type ProjectRecord,
+  type ProjectWorkspace,
+  type ReviewFeedbackInput,
+  type RunEvent,
+  type SettingsInput,
+  type SettingsView,
+  type SupplementalFileInput,
+  type SupplementalNoteInput
+} from '../shared/contracts';
 import { getAgentCredentialKey, getProviderPreset } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
 import { paperResultToDraft, summarizeReviewChanges } from '../shared/review-model';
@@ -10,8 +28,8 @@ import { createAgentRun } from './agent-service';
 import { createElectronCredentialVault } from './credentials-service';
 import { exportWorkbook, getWorkbookExportFileName } from './export-service';
 import { getProjectDirectory } from './paths';
-import { buildTextPreparationReport, inspectPdf, writeExtractedText } from './pdf-service';
-import { processPagesWithOcrMode } from './ocr-service';
+import { buildTextPreparationReport, countUsableTextCharacters, inspectPdf, writeExtractedText } from './pdf-service';
+import { OCR_AUDIT_METADATA, processPagesWithCloudOcr, type OcrConfig } from './ocr-service';
 import {
   activateResultRevision,
   cancelClassificationRun,
@@ -81,37 +99,54 @@ const toSettingsView = async (appRoot: string, settings: AppSettings): Promise<S
   return {
     ...settings,
     hasAgentKey: Boolean(settings.agent.provider && (await vault.get(getAgentCredentialKey(settings.agent)))),
-    hasOcrKey: Boolean(await vault.get('ocr:siliconflow'))
+    hasOcrKey: Boolean(await vault.get('ocr:paddle-official'))
   };
 };
 
-const prepareProject = async (appRoot: string, project: ProjectRecord, settings: AppSettings): Promise<ProjectPreparation> => {
-  const inspection = await inspectPdf(project.sourcePdfPath);
-  const vault = createElectronCredentialVault(appRoot);
-  const ocrKey = await vault.get('ocr:siliconflow');
-  const processed = await processPagesWithOcrMode({
-    mode: settings.ocr.mode,
-    pdfBytes: new Uint8Array(await readFile(project.sourcePdfPath)),
+const getRequiredOcrConfig = async (appRoot: string): Promise<OcrConfig> => {
+  const apiKey = await createElectronCredentialVault(appRoot).get('ocr:paddle-official');
+  if (!apiKey) throw new Error('导入 PDF 前必须在“设置”中配置 PaddleOCR 官方 Access Token。');
+  return { baseUrl: PADDLE_OCR_BASE_URL, apiKey, model: PADDLE_OCR_MODEL_ID };
+};
+
+const extractSupplementPdfWithCloudOcr = async (path: string, config: OcrConfig) => {
+  const inspection = await inspectPdf(path);
+  const processed = await processPagesWithCloudOcr({
+    filePath: path,
     pages: inspection.pages,
-    pagesNeedingOcr: inspection.pagesNeedingOcr,
-    config: ocrKey ? {
-      baseUrl: settings.ocr.baseUrl,
-      apiKey: ocrKey,
-      model: settings.ocr.model
-    } : undefined
+    config
+  });
+  const report = buildTextPreparationReport(processed.pages, processed.cloudAppliedPages);
+  const reviewPages = report.pages.filter((page) => page.needsReview).map((page) => page.page);
+  return {
+    text: processed.pages.map((page) => `<!-- supplement-page:${page.page} -->\n${page.text}`).join('\n\n'),
+    status: report.quality === 'high' ? 'ready' as const : 'needs_review' as const,
+    statusDetail: reviewPages.length ? `云端 OCR 已完成；第 ${reviewPages.join('、')} 页的识别结果需要人工核验。` : undefined
+  };
+};
+
+const prepareProject = async (appRoot: string, project: ProjectRecord): Promise<ProjectPreparation> => {
+  const inspection = await inspectPdf(project.sourcePdfPath);
+  const config = await getRequiredOcrConfig(appRoot);
+  const processed = await processPagesWithCloudOcr({
+    filePath: project.sourcePdfPath,
+    pages: inspection.pages,
+    config
   });
   const textReport = {
     ...buildTextPreparationReport(processed.pages, processed.cloudAppliedPages),
-    ocrMode: settings.ocr.mode,
-    cloudAttemptedPages: processed.cloudAttemptedPages,
-    localFallbackPages: processed.localFallbackPages
+    ocrMode: 'cloud' as const,
+    ocrProvider: OCR_AUDIT_METADATA.provider,
+    ocrModel: OCR_AUDIT_METADATA.model,
+    ocrPromptProfile: OCR_AUDIT_METADATA.promptProfile,
+    cloudAttemptedPages: processed.cloudAttemptedPages
   };
   await writeExtractedText(project.rootPath, processed.pages, textReport);
-  const preparedProject = await updateProjectMetadata(project, { ocrModel: settings.ocr.model });
+  const preparedProject = await updateProjectMetadata(project, { ocrModel: OCR_AUDIT_METADATA.model });
   return {
     project: preparedProject,
     pageCount: inspection.pageCount,
-    ocrMode: settings.ocr.mode,
+    ocrMode: 'cloud',
     pagesNeedingOcr: inspection.pagesNeedingOcr,
     ocrApplied: processed.cloudAppliedPages.length > 0,
     textReport
@@ -128,17 +163,21 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   });
 
   ipcMain.handle('system:open-ocr-signup-page', async (): Promise<void> => {
-    await shell.openExternal('https://cloud.siliconflow.cn/i/tN14aFYp');
+    await shell.openExternal(PADDLE_OCR_ACCESS_TOKEN_URL);
   });
 
   ipcMain.handle('settings:save', async (_event, input: SettingsInput): Promise<SettingsView> => {
-    const settings: AppSettings = { agent: input.agent, ocr: input.ocr, memory: input.memory };
+    const settings: AppSettings = {
+      agent: input.agent,
+      ocr: { mode: 'cloud', baseUrl: PADDLE_OCR_BASE_URL, model: PADDLE_OCR_MODEL_ID },
+      memory: input.memory
+    };
     const vault = createElectronCredentialVault(appRoot);
-    if (input.ocr.mode === 'cloud' && !input.ocrApiKey?.trim() && !(await vault.get('ocr:siliconflow'))) {
-      throw new Error('选择“云端 OCR”时必须配置 OCR API Key。');
+    if (!input.ocrApiKey?.trim() && !(await vault.get('ocr:paddle-official'))) {
+      throw new Error('必须配置 PaddleOCR 官方 Access Token。');
     }
     if (input.agentApiKey?.trim() && input.agent.provider) await vault.set(getAgentCredentialKey(input.agent), input.agentApiKey.trim());
-    if (input.ocrApiKey?.trim()) await vault.set('ocr:siliconflow', input.ocrApiKey.trim());
+    if (input.ocrApiKey?.trim()) await vault.set('ocr:paddle-official', input.ocrApiKey.trim());
     await saveSettings(appRoot, settings);
     return toSettingsView(appRoot, settings);
   });
@@ -166,17 +205,20 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
 
   ipcMain.handle('project:create', async (_event, input: CreateProjectInput): Promise<ProjectWorkspace> => {
     if (extname(input.sourcePdfPath).toLocaleLowerCase() !== '.pdf') throw new Error('主论文必须是 PDF。');
-    const settings = await loadSettings(appRoot);
-    if (settings.ocr.mode === 'cloud') {
-      const vault = createElectronCredentialVault(appRoot);
-      if (!(await vault.get('ocr:siliconflow'))) throw new Error('当前为“云端 OCR”模式，请先在设置中配置 OCR API Key。');
-    }
+    const ocrConfig = await getRequiredOcrConfig(appRoot);
     let project = await createProject(input.sourcePdfPath, appRoot, knowledgePackage.version);
-    const preparation = await prepareProject(appRoot, project, settings);
-    project = preparation.project;
-    if (input.supplementalFiles.length) await addSupplementalFiles(project, input.supplementalFiles);
-    for (const note of input.supplementalNotes) await addSupplementalNote(project, note);
-    return loadProjectWorkspace(appRoot, project.id);
+    try {
+      const preparation = await prepareProject(appRoot, project);
+      project = preparation.project;
+      if (input.supplementalFiles.length) {
+        await addSupplementalFiles(project, input.supplementalFiles, (path) => extractSupplementPdfWithCloudOcr(path, ocrConfig));
+      }
+      for (const note of input.supplementalNotes) await addSupplementalNote(project, note);
+      return loadProjectWorkspace(appRoot, project.id);
+    } catch (error) {
+      await deleteProject(appRoot, project.id).catch(() => undefined);
+      throw error;
+    }
   });
 
   ipcMain.handle('project:list', async () => listProjectSummaries(appRoot, getActiveClassification()?.projectId));
@@ -197,7 +239,13 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   ipcMain.handle('project:add-supplement-files', async (_event, projectId: string, files: SupplementalFileInput[]): Promise<ProjectWorkspace> => {
     assertProjectNotClassifying(projectId);
     let project = await readProject(getProjectDirectory(appRoot, projectId));
-    await addSupplementalFiles(project, files);
+    const includesPdf = files.some((file) => extname(file.path).toLocaleLowerCase() === '.pdf');
+    const ocrConfig = includesPdf ? await getRequiredOcrConfig(appRoot) : undefined;
+    await addSupplementalFiles(
+      project,
+      files,
+      ocrConfig ? (path) => extractSupplementPdfWithCloudOcr(path, ocrConfig) : undefined
+    );
     project = await markProjectMaterialsUpdated(project);
     return loadProjectWorkspace(appRoot, project.id);
   });
@@ -224,6 +272,31 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const vault = createElectronCredentialVault(appRoot);
     const apiKey = settings.agent.provider ? await vault.get(getAgentCredentialKey(settings.agent)) : undefined;
     if (!settings.agent.provider || !settings.agent.modelId || !apiKey) throw new Error('请先在“设置”中完成模型服务、模型 ID 和 API Key 配置。');
+    const preparationReport = JSON.parse(await readFile(join(project.rootPath, 'extracted', 'report.json'), 'utf8')) as {
+      pageCount?: number;
+      ocrMode?: string;
+      ocrProvider?: string;
+      ocrModel?: string;
+      ocrPromptProfile?: string;
+      ocrAppliedPages?: number[];
+      pages?: Array<{ page: number; source?: string }>;
+    };
+    const expectedPages = Array.from({ length: preparationReport.pageCount ?? 0 }, (_, index) => index + 1);
+    const appliedPages = [...new Set(preparationReport.ocrAppliedPages ?? [])].sort((left, right) => left - right);
+    const reportedOcrPages = (preparationReport.pages ?? [])
+      .filter((page) => page.source === 'ocr')
+      .map((page) => page.page)
+      .sort((left, right) => left - right);
+    if (
+      preparationReport.ocrMode !== 'cloud' ||
+      preparationReport.ocrProvider !== OCR_AUDIT_METADATA.provider ||
+      preparationReport.ocrModel !== OCR_AUDIT_METADATA.model ||
+      preparationReport.ocrPromptProfile !== OCR_AUDIT_METADATA.promptProfile ||
+      JSON.stringify(appliedPages) !== JSON.stringify(expectedPages) ||
+      JSON.stringify(reportedOcrPages) !== JSON.stringify(expectedPages)
+    ) {
+      throw new Error('当前项目的云端 OCR 数据不完整或与当前模型不一致，请重新导入论文。');
+    }
     const abortController = new AbortController();
     const releaseClassificationLock = acquireClassificationLock(projectId, 'pending', () => abortController.abort());
     const webContents: WebContents = event.sender;
@@ -234,21 +307,25 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         agentProvider: settings.agent.provider,
         agentModel: settings.agent.modelId,
         thinkingLevel: settings.agent.thinkingLevel,
-        ocrModel: settings.ocr.model,
         knowledgeVersion: knowledgePackage.version
       });
       const supplements = activeSupplementalMaterials(await listSupplementalMaterials(project));
+      const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
+      const supplementTexts = await Promise.all(supplements.map((material) => readFile(material.extractedTextPath, 'utf8')));
+      const usableCharacterCount = countUsableTextCharacters([paperText, ...supplementTexts]);
+      if (usableCharacterCount < 40) {
+        throw new Error('云端 OCR 未提取到足够的可用文本。请核对论文页面和 OCR 配置后重新导入。');
+      }
       created = await createClassificationRun(project, {
         agentProvider: settings.agent.provider,
         agentModel: settings.agent.modelId,
         thinkingLevel: settings.agent.thinkingLevel,
         knowledgeVersion: knowledgePackage.version,
-        ocrModel: settings.ocr.model
+        ocrModel: project.ocrModel ?? PADDLE_OCR_MODEL_ID
       }, supplements);
       project = created.project;
       const send = (runEvent: Omit<RunEvent, 'projectId' | 'runId'>): void => webContents.send('classification:event', { projectId, runId: created!.run.id, ...runEvent } satisfies RunEvent);
       send({ phase: 'started', detail: `${settings.agent.provider}/${settings.agent.modelId}`, progress: 10 });
-      const paperText = await readFile(join(project.rootPath, 'extracted', 'full-text.md'), 'utf8');
       const memoryContext = await retrieveMemoryContext(appRoot, paperText, settings.memory);
       const result = await createAgentRun(project, knowledgePackage.path, {
         provider: settings.agent.provider,

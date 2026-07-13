@@ -35,7 +35,11 @@ export type PaperFieldName = (typeof PAPER_FIELD_NAMES)[number];
 export type PaperFields = Record<PaperFieldName, string>;
 export type ConfidenceBand = 'green' | 'yellow' | 'red';
 export type OcrQuality = 'high' | 'low' | 'unknown';
-export type OcrMode = 'auto' | 'local' | 'cloud';
+export const PADDLE_OCR_BASE_URL = 'https://paddleocr.aistudio-app.com';
+export const PADDLE_OCR_MODEL_ID = 'PaddleOCR-VL-1.6';
+export const PADDLE_OCR_PIPELINE_PROFILE = 'paddleocr-official-document-parsing-v1.6';
+export const PADDLE_OCR_ACCESS_TOKEN_URL = 'https://aistudio.baidu.com/account/accessToken';
+export type OcrMode = 'cloud';
 export type ReviewStatus = 'needs_review' | 'confirmed';
 
 export interface Evidence {
@@ -214,6 +218,9 @@ export interface PageText {
   page: number;
   text: string;
   source?: 'embedded' | 'ocr' | 'mixed';
+  ocrTraceId?: string;
+  ocrFinishReason?: string;
+  ocrAttempts?: number;
 }
 
 export interface TextPreparationPageReport {
@@ -221,12 +228,18 @@ export interface TextPreparationPageReport {
   source: 'embedded' | 'ocr' | 'mixed';
   characterCount: number;
   needsReview: boolean;
-  qualityFlags: Array<'too_short' | 'language_mismatch' | 'model_artifact'>;
+  qualityFlags: Array<'too_short' | 'language_mismatch' | 'model_artifact' | 'excessive_repetition'>;
+  ocrTraceId?: string;
+  ocrFinishReason?: string;
+  ocrAttempts?: number;
 }
 
 export interface TextPreparationReport {
   pageCount: number;
   ocrMode?: OcrMode;
+  ocrProvider?: 'paddleocr-official';
+  ocrModel?: string;
+  ocrPromptProfile?: string;
   ocrAppliedPages: number[];
   cloudAttemptedPages?: number[];
   localFallbackPages?: number[];

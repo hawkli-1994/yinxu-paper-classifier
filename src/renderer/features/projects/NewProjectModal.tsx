@@ -29,6 +29,7 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
   const [creating, setCreating] = useState(false);
   const [noteForm] = Form.useForm<SupplementalNoteInput>();
   const setWorkspace = useAppStore((state) => state.setWorkspace);
+  const settings = useAppStore((state) => state.settings);
   const refreshProjects = useAppStore((state) => state.refreshProjects);
   const setWorkspaceTab = useAppStore((state) => state.setWorkspaceTab);
 
@@ -75,7 +76,7 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
       setWorkspace(workspace);
       await refreshProjects();
       setWorkspaceTab('materials');
-      message.success('论文项目已创建，所有资料均已保存在本地。');
+      message.success('论文项目已创建，云端 OCR 结果已保存到本地项目。');
       reset();
       onClose();
     } catch (error) {
@@ -88,9 +89,10 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
   return (
     <Modal title="新建论文项目" open={open} onCancel={close} width={760} footer={[
       <Button key="cancel" onClick={close}>取消</Button>,
-      <Button key="create" type="primary" loading={creating} disabled={!primary} onClick={() => void create()}>创建项目</Button>
+      <Button key="create" type="primary" loading={creating} disabled={!primary || !settings?.hasOcrKey} onClick={() => void create()}>创建项目</Button>
     ]}>
-      <Alert type="info" showIcon message="每个项目只处理一篇主论文。可同时添加多份补充材料，这些材料仅用于辅助当前论文的分类。" />
+      <Alert type="info" showIcon message="每个项目只处理一篇主论文。主论文及 PDF 补充材料会上传至 PaddleOCR 官方托管服务进行版面分析与文字识别；TXT、Markdown 和手动说明不会发送到 OCR 服务。" />
+      {!settings?.hasOcrKey ? <Alert className="section-alert compact-alert" type="warning" showIcon message="请先在“设置”中配置 PaddleOCR 官方 Access Token，再创建论文项目。" /> : null}
       <section className="new-project-section">
         <Space align="center">
           <FilePdfOutlined className="new-project-file-icon" />

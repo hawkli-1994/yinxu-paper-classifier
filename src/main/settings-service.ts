@@ -1,11 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { AppSettings, GlobalMemorySettings } from '../shared/contracts';
+import {
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
+  type AppSettings,
+  type GlobalMemorySettings
+} from '../shared/contracts';
 import { isCustomProvider, normalizeAgentBaseUrl } from '../shared/provider-config';
 
 const defaultSettings: AppSettings = {
   agent: { provider: '', modelId: '', thinkingLevel: 'medium' },
-  ocr: { mode: 'auto', baseUrl: 'https://api.siliconflow.cn/v1', model: 'PaddlePaddle/PaddleOCR-VL-1.5' },
+  ocr: { mode: 'cloud', baseUrl: PADDLE_OCR_BASE_URL, model: PADDLE_OCR_MODEL_ID },
   memory: { enabled: true, globalGuidance: '', revision: 0, history: [] }
 };
 
@@ -34,9 +39,9 @@ const normalizeSettings = (settings: StoredSettings): AppSettings => ({
     baseUrl: isCustomProvider(settings.agent?.provider ?? '') ? normalizeAgentBaseUrl(settings.agent?.baseUrl) : undefined
   },
   ocr: {
-    ...defaultSettings.ocr,
-    ...settings.ocr,
-    mode: ['auto', 'local', 'cloud'].includes(settings.ocr?.mode ?? '') ? settings.ocr!.mode! : 'auto'
+    mode: 'cloud',
+    baseUrl: PADDLE_OCR_BASE_URL,
+    model: PADDLE_OCR_MODEL_ID
   },
   memory: normalizeMemorySettings(settings.memory)
 });
