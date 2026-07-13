@@ -31,6 +31,7 @@
     "pdfjs-dist": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "typebox": "^1.1.38",
     "zustand": "latest"
   },
   "devDependencies": {

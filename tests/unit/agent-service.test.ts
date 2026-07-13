@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectRecord } from '../../src/shared/contracts';
 import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent';
-import { buildClassificationPrompt, buildCustomEndpointProvider, buildOpenAICompatibleProvider, CLASSIFICATION_AGENT_TOOLS, createClassificationResourceLoader, createClassificationSettingsManager } from '../../src/main/agent-service';
+import { buildClassificationPrompt, buildCustomEndpointProvider, buildOpenAICompatibleProvider, CLASSIFICATION_AGENT_TOOLS, createClassificationResourceLoader, createClassificationResultTool, createClassificationSettingsManager } from '../../src/main/agent-service';
+import { makeAgentDraft } from '../fixtures/paper-result';
 
 const project: ProjectRecord = {
   id: 'project-1',
@@ -80,7 +81,26 @@ describe('classification resource isolation', () => {
     const settings = createClassificationSettingsManager(shellPath);
 
     expect(settings.getShellPath()).toBe(shellPath);
-    expect(CLASSIFICATION_AGENT_TOOLS).toEqual(['read', 'ls', 'bash', 'write']);
+    expect(CLASSIFICATION_AGENT_TOOLS).toEqual(['read', 'ls', 'bash', 'submit_classification_result']);
+  });
+
+  it('accepts only a schema-valid result through the final submission tool', async () => {
+    let submitted = undefined as ReturnType<typeof makeAgentDraft> | undefined;
+    const tool = createClassificationResultTool((draft) => {
+      submitted = draft;
+    });
+
+    const accepted = await tool.execute('test-call', { draft: makeAgentDraft() }, undefined, undefined, {} as never);
+
+    expect(submitted).toMatchObject({ primaryCategoryCode: 'B41', abstract: expect.any(String) });
+    expect(accepted.terminate).toBe(true);
+  });
+
+  it('rejects an incomplete result instead of accepting an arbitrary file payload', async () => {
+    const tool = createClassificationResultTool(() => undefined);
+
+    await expect(tool.execute('test-call', { draft: { primaryCategoryCode: 'B41' } } as never, undefined, undefined, {} as never))
+      .rejects.toThrow('Agent draft failed schema validation');
   });
 
   it('loads only the explicitly bundled Yinxu Skill', async () => {
