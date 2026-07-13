@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Badge, Button, Card, Empty, List, Popconfirm, Progress, Space, Steps, Tag, Typography, message } from 'antd';
+import { PADDLE_OCR_MODEL_ID } from '../../../shared/contracts';
 import { useAppStore } from '../../store';
 
 const phaseLabels = ['准备任务', '读取与分析', '生成结果', '校验完成'];
@@ -72,7 +73,7 @@ export const ProcessPage = (): React.JSX.Element => {
   };
 
   if (!project || !preparation) return <Empty description="请先创建论文项目并导入主论文" />;
-  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'siliconflow' && preparation.textReport?.ocrModel === 'deepseek-ai/DeepSeek-OCR';
+  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'paddleocr-official' && preparation.textReport?.ocrModel === PADDLE_OCR_MODEL_ID;
   const failedEvent = projectEvents.find((event) => event.phase === 'failed');
   const cancelledEvent = projectEvents.find((event) => event.phase === 'cancelled');
   const validated = projectEvents.some((event) => event.phase === 'validated');
@@ -124,7 +125,7 @@ export const ProcessPage = (): React.JSX.Element => {
           className="section-alert"
           type="warning"
           showIcon
-          message="当前项目使用旧版文本准备流程。已有结果仍可复核和导出；如需重新分类，请重新导入论文并完成新版云端 OCR。"
+          message="当前项目的云端 OCR 数据不完整或与当前模型不一致。请重新导入论文后再开始分类。"
         />
       ) : null}
       {preparation.textReport?.quality === 'low' ? <Alert className="section-alert" type="error" showIcon message="OCR 文本质量较低。可以继续分类，但结果将标记为需要人工复核。建议先在“论文资料”页核对相关页面。" /> : null}

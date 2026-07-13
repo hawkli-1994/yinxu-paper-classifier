@@ -91,8 +91,8 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
       <Button key="cancel" onClick={close}>取消</Button>,
       <Button key="create" type="primary" loading={creating} disabled={!primary || !settings?.hasOcrKey} onClick={() => void create()}>创建项目</Button>
     ]}>
-      <Alert type="info" showIcon message="每个项目只处理一篇主论文。主论文及 PDF 补充材料的每一页都会发送到硅基流动进行 OCR；TXT、Markdown 和手动说明不会发送到 OCR 服务。" />
-      {!settings?.hasOcrKey ? <Alert className="section-alert compact-alert" type="warning" showIcon message="请先在“设置”中配置云端 OCR API Key，再创建论文项目。" /> : null}
+      <Alert type="info" showIcon message="每个项目只处理一篇主论文。主论文及 PDF 补充材料会上传至 PaddleOCR 官方托管服务进行版面分析与文字识别；TXT、Markdown 和手动说明不会发送到 OCR 服务。" />
+      {!settings?.hasOcrKey ? <Alert className="section-alert compact-alert" type="warning" showIcon message="请先在“设置”中配置 PaddleOCR 官方 Access Token，再创建论文项目。" /> : null}
       <section className="new-project-section">
         <Space align="center">
           <FilePdfOutlined className="new-project-file-icon" />

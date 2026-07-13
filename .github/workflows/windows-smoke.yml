@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 60
     env:
       KIMI_API_KEY: ${{ secrets.KIMIAPIKEY }}
-      OCR_API_KEY: ${{ secrets.OCRAPIKEY }}
+      PADDLEOCR_API_KEY: ${{ secrets.PADDLEOCRAPIKEY }}
 
     steps:
       - name: Check out source
@@ -38,7 +38,7 @@ jobs:
         shell: pwsh
         run: |
           if ([string]::IsNullOrWhiteSpace($env:KIMI_API_KEY)) { throw 'Repository secret KIMIAPIKEY is missing.' }
-          if ([string]::IsNullOrWhiteSpace($env:OCR_API_KEY)) { throw 'Repository secret OCRAPIKEY is missing.' }
+          if ([string]::IsNullOrWhiteSpace($env:PADDLEOCR_API_KEY)) { throw 'Repository secret PADDLEOCRAPIKEY is missing.' }
 
       - name: Install dependencies
         run: npm ci
@@ -65,7 +65,7 @@ jobs:
           if (-not $application) { throw 'Installed application executable was not found.' }
           "YINXU_SMOKE_EXECUTABLE=$($application.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Run official DeepSeek-OCR cloud workflow with Kimi
+      - name: Run official PaddleOCR cloud workflow with Kimi
         run: npm run test:smoke:win
 
       - name: Upload tested Windows installers

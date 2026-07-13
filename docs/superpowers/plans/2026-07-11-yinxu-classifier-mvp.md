@@ -13,7 +13,7 @@
 - Build for a single Windows 10/11 x64 student; do not implement accounts, sharing, a teacher backend, agent approval, or a sandbox.
 - Electron's bundled Node.js is the only required Node runtime; users do not install Node.js, Python, Docker, or developer tools.
 - Use Pi `AuthStorage` and `ModelRegistry` for Agent Provider/model choice; do not bind classification to a vendor or model.
-- Keep OCR configuration separate from the Agent model; default OCR is SiliconFlow DeepSeek-OCR.
+- Keep OCR credentials separate from the Agent model; all PDFs use the official PaddleOCR hosted API and fixed `PaddleOCR-VL-1.6` model.
 - Use Ant Design components for all generic interaction surfaces and the approved academic design tokens.
 - Store each paper in an independent project directory and never overwrite user-confirmed values without an explicit rerun choice.
 - Classify to one valid primary third-level category and 0–3 cross references; require verifiable evidence.
@@ -306,7 +306,7 @@ Expected: failure because services do not exist.
 
 - [ ] **Step 3: Implement provider-agnostic Agent and OCR adapters**
 
-Use Pi `AuthStorage`, `ModelRegistry`, a project-local persistent session and `DefaultResourceLoader` with the bundled Skill. Register inspect, OCR, validation and export custom tools. Use a SiliconFlow OCR adapter only for OCR; Agent model selection comes from Pi model registry. Read OCR credentials from safeStorage; never expose them to the renderer.
+Use Pi `AuthStorage`, `ModelRegistry`, a project-local persistent session and `DefaultResourceLoader` with the bundled Skill. Register inspect, OCR, validation and export custom tools. Use the official PaddleOCR TypeScript SDK and hosted document-parsing API with the fixed `PaddleOCR-VL-1.6` model; Agent model selection comes from Pi model registry. Read the AI Studio Access Token from safeStorage; never expose it to the renderer.
 
 - [ ] **Step 4: Run tests**
 
@@ -390,11 +390,10 @@ Expected: failure because preview script and renderer route are not yet complete
 
 - [ ] **Step 3: Add package scripts, README and packaging resources**
 
-Configure electron-builder Windows `nsis` and `portable` targets, include classification resources, retain user projects on uninstall, add `npm run test:e2e`, and document: configure an Agent Provider, configure OCR only for scans, import, review warning fields, export Excel.
+Configure electron-builder Windows `nsis` and `portable` targets, include classification resources, retain user projects on uninstall, add `npm run test:e2e`, and document: configure an Agent Provider, configure the PaddleOCR Access Token, import, review warning fields, export Excel.
 
 - [ ] **Step 4: Run full verification**
 
 Run: `npm run typecheck && npm run test:run && npm run build && npm run test:e2e`
 
 Expected: all pass. On a Windows build host also run `npm run package:win` and verify both artifacts exist.
-

@@ -1,30 +1,33 @@
 import {
-  DEEPSEEK_OCR_MODEL_ID,
-  DEEPSEEK_OCR_PROMPT_PROFILE,
-  SILICONFLOW_OCR_BASE_URL,
+  AuthError,
+  InvalidRequestError,
+  Model,
+  NetworkError,
+  PaddleOCRAPIError,
+  PaddleOCRClient,
+  PollTimeoutError,
+  RateLimitError,
+  RequestTimeoutError,
+  ServiceUnavailableError,
+  type DocParsingRequest,
+  type DocParsingResult
+} from '@paddleocr/api-sdk';
+import {
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
+  PADDLE_OCR_PIPELINE_PROFILE,
   type PageText
 } from '../shared/contracts';
-import { extractSinglePagePdf } from './pdf-service';
 
-export const DEEPSEEK_OCR_PROMPT = '<image>\nFree OCR.';
-const OCR_REQUEST_TIMEOUT_MS = 120_000;
+const OCR_REQUEST_TIMEOUT_MS = 300_000;
+const OCR_JOB_TIMEOUT_MS = 600_000;
 
-export class RetryableOcrError extends Error {
-  constructor(message: string, readonly retryAfterMs?: number) {
-    super(message);
-  }
-}
+export class RetryableOcrError extends Error {}
 
 export interface OcrConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
-}
-
-export interface OcrRecognitionResult {
-  text: string;
-  traceId?: string;
-  finishReason?: string;
 }
 
 export type Delay = (milliseconds: number) => Promise<void>;
@@ -39,176 +42,94 @@ export const retry = async <T>(operation: () => Promise<T>, maxAttempts = 3, del
     } catch (error) {
       lastError = error;
       if (!(error instanceof RetryableOcrError) || attempt === maxAttempts) throw error;
-      await delay(Math.max(250 * 2 ** (attempt - 1), error.retryAfterMs ?? 0));
+      await delay(500 * 2 ** (attempt - 1));
     }
   }
   throw lastError;
 };
 
-interface ChatCompletionPayload {
-  code?: unknown;
-  message?: unknown;
-  choices?: Array<{
-    finish_reason?: unknown;
-    message?: { content?: unknown };
-  }>;
-  error?: { message?: unknown };
+export const PADDLE_DOCUMENT_PARSING_REQUEST = {
+  model: Model.PaddleOCRVL16,
+  options: {
+    useLayoutDetection: true,
+    useChartRecognition: true,
+    temperature: 0,
+    prettifyMarkdown: true
+  }
+} satisfies Pick<DocParsingRequest, 'model' | 'options'>;
+
+export interface PaddleDocumentParser {
+  parseDocument(request: DocParsingRequest): Promise<DocParsingResult>;
 }
 
-const getErrorDetail = (payload: ChatCompletionPayload): string | undefined =>
-  typeof payload.message === 'string'
-    ? payload.message.trim().slice(0, 300)
-    : typeof payload.error?.message === 'string'
-      ? payload.error.message.trim().slice(0, 300)
-      : undefined;
+export type PaddleClientFactory = (config: OcrConfig) => PaddleDocumentParser;
 
-const getRetryAfterMs = (value: string | null): number | undefined => {
-  if (!value) return undefined;
-  const seconds = Number(value);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(60_000, Math.ceil(seconds * 1000));
-  const target = Date.parse(value);
-  if (!Number.isFinite(target)) return undefined;
-  return Math.min(60_000, Math.max(0, target - Date.now()));
+const createOfficialPaddleClient: PaddleClientFactory = (config) => new PaddleOCRClient({
+  token: config.apiKey,
+  baseUrl: PADDLE_OCR_BASE_URL,
+  requestTimeout: OCR_REQUEST_TIMEOUT_MS,
+  pollTimeout: OCR_JOB_TIMEOUT_MS
+});
+
+const providerErrorDetail = (error: unknown): string =>
+  error instanceof Error ? error.message.replace(/^HTTP \d+:\s*/u, '').trim().slice(0, 300) : String(error).slice(0, 300);
+
+const callOfficialPaddleApi = async (
+  filePath: string,
+  config: OcrConfig,
+  createClient: PaddleClientFactory
+): Promise<DocParsingResult> => {
+  try {
+    return await createClient(config).parseDocument({
+      filePath,
+      ...PADDLE_DOCUMENT_PARSING_REQUEST
+    });
+  } catch (error) {
+    if (
+      error instanceof RateLimitError ||
+      error instanceof ServiceUnavailableError ||
+      error instanceof NetworkError ||
+      error instanceof RequestTimeoutError ||
+      error instanceof PollTimeoutError
+    ) {
+      throw new RetryableOcrError(`PaddleOCR 官方云端服务暂时不可用：${providerErrorDetail(error)}`);
+    }
+    if (error instanceof AuthError) {
+      throw new Error('PaddleOCR 官方 Access Token 无效或已失效，请在“设置”中更新后重试。');
+    }
+    if (error instanceof InvalidRequestError) {
+      throw new Error(`PaddleOCR 官方云端请求无效：${providerErrorDetail(error)}`);
+    }
+    if (error instanceof PaddleOCRAPIError) {
+      throw new Error(`PaddleOCR 官方云端识别失败：${providerErrorDetail(error)}`);
+    }
+    throw error;
+  }
 };
 
-/** Calls the SiliconFlow DeepSeek-OCR PDF interface using its documented prompt and payload order. */
-export const ocrPdfWithDeepSeek = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<OcrRecognitionResult> => {
-  if (config.baseUrl.replace(/\/+$/, '') !== SILICONFLOW_OCR_BASE_URL) {
-    throw new Error('OCR 服务地址必须使用硅基流动官方接口。');
+/** Uses PaddleOCR's official TypeScript SDK and hosted document-parsing API. */
+export const parsePdfWithOfficialPaddle = async (
+  filePath: string,
+  config: OcrConfig,
+  createClient: PaddleClientFactory = createOfficialPaddleClient
+): Promise<DocParsingResult> => {
+  if (config.baseUrl.replace(/\/+$/, '') !== PADDLE_OCR_BASE_URL) {
+    throw new Error('OCR 服务地址必须使用 PaddleOCR 官方云端接口。');
   }
-  if (config.model !== DEEPSEEK_OCR_MODEL_ID) {
-    throw new Error(`当前版本仅支持官方 ${DEEPSEEK_OCR_MODEL_ID} 云端流水线。`);
+  if (config.model !== PADDLE_OCR_MODEL_ID) {
+    throw new Error(`当前版本仅支持 ${PADDLE_OCR_MODEL_ID} 官方云端文档解析。`);
   }
-
-  return retry(async () => {
-    let response: Response;
-    try {
-      response = await fetch(`${SILICONFLOW_OCR_BASE_URL}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        signal: AbortSignal.timeout(OCR_REQUEST_TIMEOUT_MS),
-        body: JSON.stringify({
-          model: DEEPSEEK_OCR_MODEL_ID,
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:application/pdf;base64,${Buffer.from(pdfBytes).toString('base64')}`
-                  }
-                },
-                { type: 'text', text: DEEPSEEK_OCR_PROMPT }
-              ]
-            }
-          ]
-        })
-      });
-    } catch (error) {
-      if (error instanceof RetryableOcrError) throw error;
-      throw new RetryableOcrError('无法连接云端 OCR 服务，系统将自动重试。');
-    }
-
-    let payload: ChatCompletionPayload = {};
-    try {
-      payload = await response.json() as ChatCompletionPayload;
-    } catch {
-      // The status-specific error below is more useful than a JSON parser error.
-    }
-    const traceId = response.headers.get('x-siliconcloud-trace-id') ?? undefined;
-    if (response.status === 429 || response.status >= 500) {
-      throw new RetryableOcrError(
-        `云端 OCR 暂时不可用（状态码 ${response.status}${traceId ? `，追踪编号 ${traceId}` : ''}）。`,
-        response.status === 429 ? getRetryAfterMs(response.headers.get('retry-after')) : undefined
-      );
-    }
-    if (!response.ok) {
-      const detail = getErrorDetail(payload);
-      throw new Error(`云端 OCR 请求失败（状态码 ${response.status}${detail ? `：${detail}` : ''}）。`);
-    }
-
-    const choice = payload.choices?.[0];
-    const text = typeof choice?.message?.content === 'string' ? choice.message.content.trim() : '';
-    const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : undefined;
-    if (finishReason === 'length') {
-      throw new RetryableOcrError(`云端 OCR 输出被截断${traceId ? `（追踪编号 ${traceId}）` : ''}。`);
-    }
-    if (!text) {
-      throw new RetryableOcrError(`云端 OCR 未返回可用文本${traceId ? `（追踪编号 ${traceId}）` : ''}。`);
-    }
-    return { text, traceId, finishReason };
-  });
+  if (!config.apiKey.trim()) {
+    throw new Error('导入 PDF 前必须配置 PaddleOCR 官方 Access Token。');
+  }
+  return retry(() => callOfficialPaddleApi(filePath, config, createClient));
 };
-
-export type OcrRecognizer = (pdfBytes: Uint8Array, config: OcrConfig) => Promise<OcrRecognitionResult>;
 
 const artifactPattern = /<\|(?:LOC|REF|DET|end|begin|grounding)[^>]*\|>|�/i;
 const hasExcessiveRepetition = (text: string): boolean => /(.)\1{11,}/u.test(text) || /(.{2,12})\1{7,}/u.test(text);
 
-const scoreRecognition = (text: string): number => {
-  const compactLength = text.replace(/\s/g, '').length;
-  const artifactCount = text.match(/<\|(?:LOC|REF|DET|end|begin|grounding)[^>]*\|>|�/gi)?.length ?? 0;
-  return compactLength - artifactCount * 10_000 - (hasExcessiveRepetition(text) ? 10_000 : 0);
-};
-
-const recognizePage = async (
-  singlePagePdf: Uint8Array,
-  pageNumber: number,
-  config: OcrConfig,
-  recognize: OcrRecognizer
-): Promise<PageText> => {
-  let best: OcrRecognitionResult | undefined;
-  let attempts = 0;
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    attempts = attempt;
-    const candidate = await recognize(singlePagePdf, config);
-    if (!best || scoreRecognition(candidate.text) > scoreRecognition(best.text)) best = candidate;
-    const compactLength = candidate.text.replace(/\s/g, '').length;
-    if (compactLength >= 40 && !artifactPattern.test(candidate.text) && !hasExcessiveRepetition(candidate.text)) {
-      return {
-        page: pageNumber,
-        text: candidate.text.trim(),
-        source: 'ocr',
-        ocrTraceId: candidate.traceId,
-        ocrFinishReason: candidate.finishReason,
-        ocrAttempts: attempts
-      };
-    }
-  }
-
-  if (!best || artifactPattern.test(best.text) || hasExcessiveRepetition(best.text)) {
-    throw new Error(`第 ${pageNumber} 页的云端 OCR 结果包含异常控制符或明显重复，已停止导入以避免使用错误文本。`);
-  }
-  return {
-    page: pageNumber,
-    text: best.text.trim(),
-    source: 'ocr',
-    ocrTraceId: best.traceId,
-    ocrFinishReason: best.finishReason,
-    ocrAttempts: attempts
-  };
-};
-
-export const ocrPagesIndividually = async (
-  pdfBytes: Uint8Array,
-  pages: readonly PageText[],
-  config: OcrConfig,
-  recognize: OcrRecognizer = ocrPdfWithDeepSeek
-): Promise<PageText[]> => {
-  const recognized: PageText[] = [];
-  for (const page of pages) {
-    const singlePagePdf = await extractSinglePagePdf(pdfBytes, page.page);
-    recognized.push(await recognizePage(singlePagePdf, page.page, config, recognize));
-  }
-  return recognized;
-};
-
 export interface CloudOcrProcessingInput {
-  pdfBytes: Uint8Array;
+  filePath: string;
   pages: readonly PageText[];
   config?: OcrConfig;
 }
@@ -219,14 +140,35 @@ export interface CloudOcrProcessingResult {
   cloudAppliedPages: number[];
 }
 
-/** Every PDF page is recognized by the configured cloud OCR service. There is no local fallback. */
+export type PaddleDocumentRecognizer = (filePath: string, config: OcrConfig) => Promise<DocParsingResult>;
+
+/** Every PDF page is parsed by PaddleOCR's official hosted service. There is no local fallback. */
 export const processPagesWithCloudOcr = async (
   input: CloudOcrProcessingInput,
-  recognize: OcrRecognizer = ocrPdfWithDeepSeek
+  recognize: PaddleDocumentRecognizer = parsePdfWithOfficialPaddle
 ): Promise<CloudOcrProcessingResult> => {
-  if (!input.config?.apiKey) throw new Error('导入 PDF 前必须配置云端 OCR API Key。');
+  if (!input.config?.apiKey) throw new Error('导入 PDF 前必须配置 PaddleOCR 官方 Access Token。');
   const pageNumbers = input.pages.map((page) => page.page);
-  const pages = await ocrPagesIndividually(input.pdfBytes, input.pages, input.config, recognize);
+  const result = await recognize(input.filePath, input.config);
+  if (result.pages.length !== pageNumbers.length) {
+    throw new Error(`PaddleOCR 官方云端返回 ${result.pages.length} 页，但原 PDF 共 ${pageNumbers.length} 页，已停止导入。`);
+  }
+
+  const pages = result.pages.map((page, index): PageText => {
+    const text = page.markdownText.trim();
+    if (artifactPattern.test(text) || hasExcessiveRepetition(text)) {
+      throw new Error(`第 ${index + 1} 页的 PaddleOCR 结果包含异常控制符或明显重复，已停止导入以避免使用错误文本。`);
+    }
+    return {
+      page: pageNumbers[index]!,
+      text,
+      source: 'ocr',
+      ocrTraceId: result.jobId,
+      ocrFinishReason: 'completed',
+      ocrAttempts: 1
+    };
+  });
+
   return {
     pages,
     cloudAttemptedPages: pageNumbers,
@@ -235,7 +177,7 @@ export const processPagesWithCloudOcr = async (
 };
 
 export const OCR_AUDIT_METADATA = {
-  provider: 'siliconflow' as const,
-  model: DEEPSEEK_OCR_MODEL_ID,
-  promptProfile: DEEPSEEK_OCR_PROMPT_PROFILE
+  provider: 'paddleocr-official' as const,
+  model: PADDLE_OCR_MODEL_ID,
+  promptProfile: PADDLE_OCR_PIPELINE_PROFILE
 };

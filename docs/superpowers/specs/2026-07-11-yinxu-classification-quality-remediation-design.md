@@ -1,6 +1,6 @@
 # 殷墟论文分类质量整改设计
 
-> 2026-07-13 OCR 修订：所有 PDF 页统一使用硅基流动 DeepSeek-OCR 官方云端流程；无 API Key、请求失败、输出截断或出现控制符时不得回退到本地文本层。PaddleOCR-VL 只有通过包含版面分析的官方客户端产线才能称为完整流水线，当前版本不再提供此前的单模型直调。
+> 2026-07-13 OCR 最终修订：所有 PDF 统一使用 PaddleOCR 官方托管 API、官方 TypeScript SDK 与 `PaddleOCR-VL-1.6` 文档解析；无 AI Studio Access Token 或云端任务失败时不得回退到本地文本层。
 
 ## 背景与目标
 
@@ -50,14 +50,14 @@ resources/yinxu-classifier/
 
 ## 文本与 OCR
 
-电子 PDF 使用 PDF.js 提取逐页文本，并保留合理空格和换行。`writeExtractedText` 同时生成：
+PDF.js 与 MuPDF 只负责页数检查和文本层质量对照。所有 PDF 均整份提交给 PaddleOCR 官方托管文档解析 API，官方服务返回的逐页 Markdown 是分类流程的权威文本。`writeExtractedText` 同时生成：
 
 - `text.jsonl`：逐页权威文本；
 - `full-text.md`：带页码注释的全文；
 - `chunks/chunk-NNNN.md`：不超过约 20,000 字符的完整分块；
 - `report.json`：每页来源、字符数和整体 OCR 质量。
 
-待 OCR 页面使用 `@pdfme/pdf-lib` 拆成单页 PDF，再逐页调用 DeepSeek-OCR。每次响应只写回对应页。OCR 质量由字符覆盖率、空页比例和异常字符比例计算，模型不能自行指定。
+应用通过 `@paddleocr/api-sdk` 调用 `PaddleOCR-VL-1.6`，启用版面检测、图表识别和 Markdown 整理。返回页必须与原 PDF 页数和顺序一致；任一页面包含控制符、明显重复或低质量文本时停止导入或标记人工复核。模型和服务地址均由产品固定，用户只配置 AI Studio Access Token。
 
 ## Agent 草稿与确定性后处理
 

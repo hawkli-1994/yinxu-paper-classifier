@@ -1,7 +1,7 @@
 import { DeleteOutlined, FileAddOutlined, FilePdfOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Descriptions, Empty, Form, Input, List, Modal, Popconfirm, Select, Space, Tag, Typography, message } from 'antd';
 import { useState } from 'react';
-import type { LocalFileSelection, SupplementKind, SupplementalFileInput, SupplementalNoteInput } from '../../../shared/contracts';
+import { PADDLE_OCR_MODEL_ID, type LocalFileSelection, type SupplementKind, type SupplementalFileInput, type SupplementalNoteInput } from '../../../shared/contracts';
 import { useAppStore } from '../../store';
 
 const kindLabels: Record<SupplementKind, string> = {
@@ -31,8 +31,8 @@ export const MaterialsPage = (): React.JSX.Element => {
 
   if (!workspace) return <Empty description="请选择论文项目" />;
   const { project, preparation } = workspace;
-  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'siliconflow' && preparation.textReport?.ocrModel === 'deepseek-ai/DeepSeek-OCR';
-  const ocrModelLabel = isCurrentCloudOcr ? 'DeepSeek-OCR' : '旧版文本准备';
+  const isCurrentCloudOcr = preparation.textReport?.ocrProvider === 'paddleocr-official' && preparation.textReport?.ocrModel === PADDLE_OCR_MODEL_ID;
+  const ocrModelLabel = isCurrentCloudOcr ? 'PaddleOCR-VL-1.6（官方云端）' : '未使用当前 OCR 流程';
   const cloudAttemptedCount = preparation.textReport?.cloudAttemptedPages?.length ?? preparation.textReport?.ocrAppliedPages.length ?? 0;
   const cloudAppliedCount = preparation.textReport?.ocrAppliedPages.length ?? 0;
   const supplements = workspace.supplements.filter((material) => !material.removedAt);

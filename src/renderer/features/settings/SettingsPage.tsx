@@ -2,8 +2,8 @@ import { LinkOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, Descriptions, Divider, Form, Input, Select, Space, Tag, Typography, message } from 'antd';
 import {
-  DEEPSEEK_OCR_MODEL_ID,
-  SILICONFLOW_OCR_BASE_URL,
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
   type SettingsInput
 } from '../../../shared/contracts';
 import {
@@ -88,7 +88,7 @@ export const SettingsPage = (): React.JSX.Element => {
           thinkingLevel: values.thinkingLevel,
           baseUrl: isCustomProvider(values.provider) ? normalizeAgentBaseUrl(values.baseUrl) : undefined
         },
-        ocr: { mode: 'cloud', baseUrl: SILICONFLOW_OCR_BASE_URL, model: DEEPSEEK_OCR_MODEL_ID },
+        ocr: { mode: 'cloud', baseUrl: PADDLE_OCR_BASE_URL, model: PADDLE_OCR_MODEL_ID },
         memory: latestSettings.memory,
         agentApiKey: values.agentApiKey,
         ocrApiKey: values.ocrApiKey
@@ -120,7 +120,7 @@ export const SettingsPage = (): React.JSX.Element => {
     try {
       await window.yinxu.openOcrSignupPage();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '打开硅基流动注册页面失败。');
+      message.error(error instanceof Error ? error.message : '打开 PaddleOCR Access Token 页面失败。');
     }
   };
 
@@ -217,27 +217,25 @@ export const SettingsPage = (): React.JSX.Element => {
             className="section-alert compact-alert"
             showIcon
             type="warning"
-            message="导入论文时，每一页 PDF 都会发送到硅基流动 DeepSeek-OCR。必须配置 API Key；识别失败时会停止导入，不会使用本地文本替代云端 OCR 结果。"
+            message="导入论文时，PDF 会上传至 PaddleOCR 官方托管服务，并使用 PaddleOCR-VL-1.6 完成版面分析与文字识别。必须配置官方 Access Token；识别失败时会停止导入，不会使用本地文本替代云端结果。"
           />
           <div className="form-grid">
             <Descriptions size="small" bordered column={1} className="provider-summary-card">
-              <Descriptions.Item label="OCR 服务">硅基流动</Descriptions.Item>
-              <Descriptions.Item label="官方模型">{DEEPSEEK_OCR_MODEL_ID}</Descriptions.Item>
-              <Descriptions.Item label="处理方式">逐页 PDF 云端识别</Descriptions.Item>
+              <Descriptions.Item label="OCR 服务">PaddleOCR 官方云端 API</Descriptions.Item>
+              <Descriptions.Item label="文档解析模型">{PADDLE_OCR_MODEL_ID}</Descriptions.Item>
+              <Descriptions.Item label="处理方式">官方托管的版面分析与文档解析</Descriptions.Item>
             </Descriptions>
             <Form.Item
-              label={
-                <Space size={4}>
-                  <span>{settings?.hasOcrKey ? '更换 OCR API Key（已保存，如无需更换可留空）' : 'OCR API Key'}</span>
-                  <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => void openOcrSignupPage()}>注册并获取 API Key</Button>
-                </Space>
-              }
+              className="ocr-token-field"
+              label={settings?.hasOcrKey ? '更换 PaddleOCR Access Token（已保存，如无需更换可留空）' : 'PaddleOCR 官方 Access Token'}
               name="ocrApiKey"
-              rules={!settings?.hasOcrKey ? [{ required: true, message: '必须配置云端 OCR API Key。' }] : []}
+              rules={!settings?.hasOcrKey ? [{ required: true, message: '必须配置 PaddleOCR 官方 Access Token。' }] : []}
+              extra="Token 由飞桨 AI Studio 提供，仅用于调用 PaddleOCR 官方云端文档解析服务。"
             >
               <Input.Password
-                placeholder={settings?.hasOcrKey ? '已保存，如无需更换可留空' : '必填：用于所有 PDF 页面的云端 OCR'}
+                placeholder={settings?.hasOcrKey ? '已安全保存，如无需更换可留空' : '必填：粘贴 AI Studio Access Token'}
                 autoComplete="new-password"
+                addonAfter={<Button type="link" size="small" icon={<LinkOutlined />} onClick={() => void openOcrSignupPage()}>前往官网获取 Token</Button>}
               />
             </Form.Item>
           </div>

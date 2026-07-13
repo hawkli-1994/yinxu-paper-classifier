@@ -81,8 +81,8 @@ const saveCloudSettings = async (
       },
       ocr: {
         mode: 'cloud',
-        baseUrl: 'https://api.siliconflow.cn/v1',
-        model: 'deepseek-ai/DeepSeek-OCR'
+        baseUrl: 'https://paddleocr.aistudio-app.com',
+        model: 'PaddleOCR-VL-1.6'
       },
       memory: current.memory,
       agentApiKey: kimiApiKey,
@@ -288,7 +288,7 @@ test.beforeEach(() => {
   test.skip(process.platform !== 'win32', 'This smoke test exercises the installed Windows application.');
   expect(process.env.YINXU_SMOKE_EXECUTABLE, 'YINXU_SMOKE_EXECUTABLE must point to the installed application').toBeTruthy();
   expect(process.env.KIMI_API_KEY, 'KIMI_API_KEY is required').toBeTruthy();
-  expect(process.env.OCR_API_KEY, 'OCR_API_KEY is required').toBeTruthy();
+  expect(process.env.PADDLEOCR_API_KEY, 'PADDLEOCR_API_KEY is required').toBeTruthy();
 });
 
 test('installed app enforces a single writable instance', async () => {
@@ -307,21 +307,21 @@ test('installed app enforces a single writable instance', async () => {
   }
 });
 
-test('official DeepSeek-OCR cloud pipeline recognizes a scanned PDF and completes classification', async () => {
-  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-deepseek-cloud-paper-'));
+test('official PaddleOCR cloud pipeline recognizes a scanned PDF and completes classification', async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-paddle-cloud-paper-'));
   const paperPath = join(fixtureRoot, 'scanned-yinxu-paper.pdf');
   await createScannedPaper(paperPath);
   try {
     const scenario = await runClassificationScenario({
-      scenario: 'deepseek-cloud',
+      scenario: 'paddle-cloud',
       paperPath,
       kimiApiKey: process.env.KIMI_API_KEY!,
-      ocrApiKey: process.env.OCR_API_KEY!,
+      ocrApiKey: process.env.PADDLEOCR_API_KEY!,
       verifyPreparation: (preparation) => {
         expect(preparation.textReport?.ocrMode).toBe('cloud');
-        expect(preparation.textReport?.ocrProvider).toBe('siliconflow');
-        expect(preparation.textReport?.ocrModel).toBe('deepseek-ai/DeepSeek-OCR');
-        expect(preparation.textReport?.ocrPromptProfile).toBe('deepseek-free-ocr-v1');
+        expect(preparation.textReport?.ocrProvider).toBe('paddleocr-official');
+        expect(preparation.textReport?.ocrModel).toBe('PaddleOCR-VL-1.6');
+        expect(preparation.textReport?.ocrPromptProfile).toBe('paddleocr-official-document-parsing-v1.6');
         expect(preparation.textReport?.cloudAttemptedPages).toEqual([1]);
         expect(preparation.textReport?.ocrAppliedPages).toEqual([1]);
         expect(preparation.ocrApplied).toBe(true);

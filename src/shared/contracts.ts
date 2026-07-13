@@ -35,9 +35,10 @@ export type PaperFieldName = (typeof PAPER_FIELD_NAMES)[number];
 export type PaperFields = Record<PaperFieldName, string>;
 export type ConfidenceBand = 'green' | 'yellow' | 'red';
 export type OcrQuality = 'high' | 'low' | 'unknown';
-export const SILICONFLOW_OCR_BASE_URL = 'https://api.siliconflow.cn/v1';
-export const DEEPSEEK_OCR_MODEL_ID = 'deepseek-ai/DeepSeek-OCR';
-export const DEEPSEEK_OCR_PROMPT_PROFILE = 'deepseek-free-ocr-v1';
+export const PADDLE_OCR_BASE_URL = 'https://paddleocr.aistudio-app.com';
+export const PADDLE_OCR_MODEL_ID = 'PaddleOCR-VL-1.6';
+export const PADDLE_OCR_PIPELINE_PROFILE = 'paddleocr-official-document-parsing-v1.6';
+export const PADDLE_OCR_ACCESS_TOKEN_URL = 'https://aistudio.baidu.com/account/accessToken';
 export type OcrMode = 'cloud';
 export type ReviewStatus = 'needs_review' | 'confirmed';
 
@@ -236,7 +237,7 @@ export interface TextPreparationPageReport {
 export interface TextPreparationReport {
   pageCount: number;
   ocrMode?: OcrMode;
-  ocrProvider?: 'siliconflow';
+  ocrProvider?: 'paddleocr-official';
   ocrModel?: string;
   ocrPromptProfile?: string;
   ocrAppliedPages: number[];

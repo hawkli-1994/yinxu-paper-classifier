@@ -34,9 +34,29 @@ test('manages local paper projects, supplements, workspace tabs, and independent
   try {
     const window = await app.firstWindow();
     await app.evaluate(() => {
-      globalThis.fetch = async () => new Response(JSON.stringify({
-        choices: [{ finish_reason: 'stop', message: { content: '云端测试识别结果：本文讨论殷墟甲骨卜辞、祭祀制度、考古背景与材料释读方法，并依据出土信息分析主要结论。' } }]
-      }), { status: 200, headers: { 'x-siliconcloud-trace-id': 'e2e-trace' } });
+      let jobSequence = 0;
+      globalThis.fetch = async (input, init) => {
+        const url = String(input);
+        if (url.endsWith('/api/v2/ocr/jobs') && init?.method === 'POST') {
+          jobSequence += 1;
+          return new Response(JSON.stringify({ code: 0, data: { jobId: `e2e-job-${jobSequence}` } }), { status: 200 });
+        }
+        if (url.includes('/api/v2/ocr/jobs/e2e-job-')) {
+          const jobId = url.split('/').at(-1);
+          return new Response(JSON.stringify({
+            code: 0,
+            data: { state: 'done', resultUrl: { jsonUrl: `https://result.example/${jobId}.jsonl` } }
+          }), { status: 200 });
+        }
+        return new Response(`${JSON.stringify({
+          result: {
+            layoutParsingResults: [{
+              markdown: { text: '云端测试识别结果：本文讨论殷墟甲骨卜辞、祭祀制度、考古背景与材料释读方法，并依据出土信息分析主要结论。', images: {} },
+              outputImages: {}
+            }]
+          }
+        })}\n`, { status: 200 });
+      };
     });
     await window.evaluate(async () => {
       const current = await window.yinxu.getSettings();
@@ -113,12 +133,26 @@ test('manages local paper projects, supplements, workspace tabs, and independent
     await window.getByRole('button', { name: '设置' }).click();
     await expect(window.getByRole('heading', { name: 'AI 模型与 OCR 设置' })).toBeVisible();
     await expect(window.getByText('AI 分类模型')).toBeVisible();
-    await expect(window.getByText('deepseek-ai/DeepSeek-OCR')).toBeVisible();
+    await expect(window.getByText('PaddleOCR 官方云端 API')).toBeVisible();
+    await expect(window.getByText('PaddleOCR-VL-1.6', { exact: true })).toBeVisible();
+    const paddleTokenLink = window.getByRole('button', { name: '前往官网获取 Token' });
+    await expect(paddleTokenLink).toBeVisible();
+    await app.evaluate(({ shell }) => {
+      (globalThis as typeof globalThis & { openedPaddleTokenUrl?: string }).openedPaddleTokenUrl = undefined;
+      shell.openExternal = async (targetUrl) => {
+        (globalThis as typeof globalThis & { openedPaddleTokenUrl?: string }).openedPaddleTokenUrl = targetUrl;
+      };
+    });
+    await paddleTokenLink.click();
+    expect(await app.evaluate(() =>
+      (globalThis as typeof globalThis & { openedPaddleTokenUrl?: string }).openedPaddleTokenUrl
+    )).toBe('https://aistudio.baidu.com/account/accessToken');
     await expect(window.getByText('OCR 执行模式')).toHaveCount(0);
     await expect(window.getByText('自动', { exact: true })).toHaveCount(0);
     await expect(window.getByText('本地', { exact: true })).toHaveCount(0);
+    await paddleTokenLink.scrollIntoViewIfNeeded();
     await window.waitForTimeout(250);
-    await window.screenshot({ path: '/tmp/yinxu-copy-settings.png' });
+    await window.screenshot({ path: '/tmp/yinxu-paddle-token-settings.png' });
     await window.getByRole('button', { name: '全局规则与记忆' }).click();
     await expect(window.getByRole('heading', { name: '全局规则与记忆' })).toBeVisible();
     await window.waitForTimeout(250);

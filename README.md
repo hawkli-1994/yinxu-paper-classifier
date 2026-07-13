@@ -7,8 +7,8 @@
 - 一篇论文对应一个本地论文项目，可在左侧项目列表中搜索、切换和重新打开；
 - 新建项目时只选择一篇主论文，同时可选择多份 PDF、TXT、Markdown 补充材料或填写手工说明；
 - 项目创建后仍可在“资料”中增补或移除作者信息、书目信息、专家意见、论文附录和其他材料；
-- 所有主论文 PDF 页面均通过硅基流动 `deepseek-ai/DeepSeek-OCR` 云端识别；没有 OCR API Key 时禁止导入，不提供本地或自动回退模式；
-- DeepSeek-OCR 使用硅基流动官方 PDF 请求格式与官方 `Free OCR.` 提示；PDF.js 与 MuPDF 仅用于页数检查和文本层质量对照，不作为 OCR；
+- 所有主论文 PDF 均通过 PaddleOCR 官方托管 API 与官方 TypeScript SDK 解析；没有 AI Studio Access Token 时禁止导入，不提供本地或自动回退模式；
+- 云端解析固定使用 `PaddleOCR-VL-1.6`，按照官方托管 API 支持的参数启用版面检测、图表识别和 Markdown 整理；PDF.js 与 MuPDF 仅用于页数检查和文本层质量对照，不作为 OCR；
 - PDF 补充材料使用同一云端 OCR 流程；TXT、Markdown 和手工说明保留在本地，不发送到 OCR 服务；
 - 使用 Pi 支持的 Provider 与模型完成分类编排；
 - 随应用携带私有 Git Bash 运行时，Agent 不依赖学生另行安装 Git、Bash 或配置系统 PATH；
@@ -28,7 +28,7 @@
 
 1. 打开“设置”。
 2. 输入 Pi Provider、模型 ID 与该 Provider 的 API Key。
-3. 配置硅基流动 OCR API Key。OCR 服务固定为 `https://api.siliconflow.cn/v1`，模型固定为 `deepseek-ai/DeepSeek-OCR`；导入时每一页 PDF 都会发送到该服务。
+3. 在飞桨 AI Studio 获取并配置 PaddleOCR 官方 Access Token。OCR 服务固定为 `https://paddleocr.aistudio-app.com`，模型固定为 `PaddleOCR-VL-1.6`；导入时 PDF 会上传到该官方托管服务。
 4. 点击“新建论文项目”，选择一篇主论文 PDF；需要时同时添加多份辅助文件或手工补充说明。
 5. 在项目的“资料”中核对主论文与补充材料；以后获得新材料也可以回到这里继续添加。
 6. 进入“AI 分类”，点击“新建分类运行”。同一项目可以多次运行，旧结果不会被覆盖。
@@ -62,7 +62,7 @@ Windows 构建：
 npm run package:win
 ```
 
-该命令会从 Git for Windows 官方发行包准备精简的私有 Git Bash 运行时，随后输出 NSIS 安装程序与 portable 可执行文件到 `release/`。DeepSeek-OCR 直接接收 PDF，正式应用不再加载原生 Canvas 组件；学生电脑不会安装独立 Git，也不会修改系统 PATH。
+该命令会从 Git for Windows 官方发行包准备精简的私有 Git Bash 运行时，随后输出 NSIS 安装程序与 portable 可执行文件到 `release/`。PaddleOCR 官方 TypeScript SDK 直接上传 PDF，正式应用不加载本地 OCR 模型或原生 Canvas 组件；学生电脑不会安装独立 Git，也不会修改系统 PATH。
 
 ## 数据位置
 
@@ -95,7 +95,7 @@ V0.5 实现的是可审计的 Agent 反馈循环，不是直接更新大模型�
 - 项目级 Agent 对话与通过对话微调结果尚未纳入 V0.5；当前通过重复分类、人工复核和版本切换完成迭代；
 - 图像素材库工作表目前作为空模板导出，不自动提取论文图片；
 - Agent 使用读取、列目录、Bash 和写入工具；Bash 来自应用内私有运行时，首版不实现权限审批或沙箱；
-- 所有 PDF OCR 都依赖网络与学生自己的硅基流动 API Key；没有 Key 或云端识别失败时不会使用本地文本替代；
-- PaddleOCR-VL-1.5 的官方完整流水线需要本机版面分析组件，并不是仅凭硅基流动 Key 即可完成的纯云端流程，因此当前版本不再提供此前不完整的 Paddle 单模型调用；
+- 所有 PDF OCR 都依赖网络与学生自己的飞桨 AI Studio Access Token；没有 Token 或云端识别失败时不会使用本地文本替代；
+- 当前版本只使用 PaddleOCR 官方托管文档解析服务，不在学生电脑上运行 PaddleOCR/PaddleX；
 - 论文上传到所选 Agent/OCR Provider 前，使用者应确认拥有相应授权。
 - 当前学术 Demo 使用 AGPL 许可的 MuPDF.js 进行 PDF 文本层质量对照；商业闭源分发前需取得 MuPDF 商业许可或替换该组件。

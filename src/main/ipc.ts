@@ -2,8 +2,9 @@ import { app, dialog, ipcMain, shell, type WebContents } from 'electron';
 import { readFile, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import {
-  DEEPSEEK_OCR_MODEL_ID,
-  SILICONFLOW_OCR_BASE_URL,
+  PADDLE_OCR_ACCESS_TOKEN_URL,
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
   type AppSettings,
   type CreateProjectInput,
   type KnowledgePackage,
@@ -98,20 +99,20 @@ const toSettingsView = async (appRoot: string, settings: AppSettings): Promise<S
   return {
     ...settings,
     hasAgentKey: Boolean(settings.agent.provider && (await vault.get(getAgentCredentialKey(settings.agent)))),
-    hasOcrKey: Boolean(await vault.get('ocr:siliconflow'))
+    hasOcrKey: Boolean(await vault.get('ocr:paddle-official'))
   };
 };
 
 const getRequiredOcrConfig = async (appRoot: string): Promise<OcrConfig> => {
-  const apiKey = await createElectronCredentialVault(appRoot).get('ocr:siliconflow');
-  if (!apiKey) throw new Error('导入 PDF 前必须在“设置”中配置云端 OCR API Key。');
-  return { baseUrl: SILICONFLOW_OCR_BASE_URL, apiKey, model: DEEPSEEK_OCR_MODEL_ID };
+  const apiKey = await createElectronCredentialVault(appRoot).get('ocr:paddle-official');
+  if (!apiKey) throw new Error('导入 PDF 前必须在“设置”中配置 PaddleOCR 官方 Access Token。');
+  return { baseUrl: PADDLE_OCR_BASE_URL, apiKey, model: PADDLE_OCR_MODEL_ID };
 };
 
 const extractSupplementPdfWithCloudOcr = async (path: string, config: OcrConfig) => {
   const inspection = await inspectPdf(path);
   const processed = await processPagesWithCloudOcr({
-    pdfBytes: new Uint8Array(await readFile(path)),
+    filePath: path,
     pages: inspection.pages,
     config
   });
@@ -128,7 +129,7 @@ const prepareProject = async (appRoot: string, project: ProjectRecord): Promise<
   const inspection = await inspectPdf(project.sourcePdfPath);
   const config = await getRequiredOcrConfig(appRoot);
   const processed = await processPagesWithCloudOcr({
-    pdfBytes: new Uint8Array(await readFile(project.sourcePdfPath)),
+    filePath: project.sourcePdfPath,
     pages: inspection.pages,
     config
   });
@@ -162,21 +163,21 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
   });
 
   ipcMain.handle('system:open-ocr-signup-page', async (): Promise<void> => {
-    await shell.openExternal('https://cloud.siliconflow.cn/i/tN14aFYp');
+    await shell.openExternal(PADDLE_OCR_ACCESS_TOKEN_URL);
   });
 
   ipcMain.handle('settings:save', async (_event, input: SettingsInput): Promise<SettingsView> => {
     const settings: AppSettings = {
       agent: input.agent,
-      ocr: { mode: 'cloud', baseUrl: SILICONFLOW_OCR_BASE_URL, model: DEEPSEEK_OCR_MODEL_ID },
+      ocr: { mode: 'cloud', baseUrl: PADDLE_OCR_BASE_URL, model: PADDLE_OCR_MODEL_ID },
       memory: input.memory
     };
     const vault = createElectronCredentialVault(appRoot);
-    if (!input.ocrApiKey?.trim() && !(await vault.get('ocr:siliconflow'))) {
-      throw new Error('必须配置云端 OCR API Key。');
+    if (!input.ocrApiKey?.trim() && !(await vault.get('ocr:paddle-official'))) {
+      throw new Error('必须配置 PaddleOCR 官方 Access Token。');
     }
     if (input.agentApiKey?.trim() && input.agent.provider) await vault.set(getAgentCredentialKey(input.agent), input.agentApiKey.trim());
-    if (input.ocrApiKey?.trim()) await vault.set('ocr:siliconflow', input.ocrApiKey.trim());
+    if (input.ocrApiKey?.trim()) await vault.set('ocr:paddle-official', input.ocrApiKey.trim());
     await saveSettings(appRoot, settings);
     return toSettingsView(appRoot, settings);
   });
@@ -294,7 +295,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
       JSON.stringify(appliedPages) !== JSON.stringify(expectedPages) ||
       JSON.stringify(reportedOcrPages) !== JSON.stringify(expectedPages)
     ) {
-      throw new Error('当前项目未完成新版云端 OCR。已有结果仍可复核和导出；如需重新分类，请重新导入论文。');
+      throw new Error('当前项目的云端 OCR 数据不完整或与当前模型不一致，请重新导入论文。');
     }
     const abortController = new AbortController();
     const releaseClassificationLock = acquireClassificationLock(projectId, 'pending', () => abortController.abort());
@@ -320,7 +321,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         agentModel: settings.agent.modelId,
         thinkingLevel: settings.agent.thinkingLevel,
         knowledgeVersion: knowledgePackage.version,
-        ocrModel: project.ocrModel ?? DEEPSEEK_OCR_MODEL_ID
+        ocrModel: project.ocrModel ?? PADDLE_OCR_MODEL_ID
       }, supplements);
       project = created.project;
       const send = (runEvent: Omit<RunEvent, 'projectId' | 'runId'>): void => webContents.send('classification:event', { projectId, runId: created!.run.id, ...runEvent } satisfies RunEvent);

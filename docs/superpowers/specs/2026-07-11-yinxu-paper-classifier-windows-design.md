@@ -6,7 +6,7 @@
 **目标平台：** Windows 10/11 x64  
 **产品形态：** 单人本地桌面应用  
 
-> 2026-07-13 OCR 修订：产品不再提供“本地 OCR”或“自动 OCR”。主论文及 PDF 补充材料的每一页必须通过硅基流动 `deepseek-ai/DeepSeek-OCR` 官方 PDF 接口识别，并要求 API Key；PDF.js/MuPDF 仅用于检查与质量对照。本文后续涉及按页筛选、本地回退或 Paddle 单模型直调的旧描述，以此修订为准。
+> 2026-07-13 OCR 最终修订：产品不提供“本地 OCR”或“自动 OCR”。主论文及 PDF 补充材料必须通过 PaddleOCR 官方托管 API、官方 TypeScript SDK 与 `PaddleOCR-VL-1.6` 文档解析，并要求 AI Studio Access Token；PDF.js/MuPDF 仅用于检查与质量对照。
 
 ## 1. 执行摘要
 
@@ -18,7 +18,7 @@
 - `@earendil-works/pi-coding-agent` 作为 Agent 编排内核；
 - Skill 承载分类方法、判断顺序、混淆项和示例；
 - YAML/JSON 承载分类目录、字段 Schema 和硬性规则；
-- 硅基流动 DeepSeek-OCR 处理扫描版和混合型 PDF；
+- PaddleOCR 官方托管文档解析 API 统一处理电子版、扫描版和混合型 PDF；
 - Agent 的 LLM Provider 通过“主流厂商下拉菜单 + 自定义兼容端点”选择，模型和认证仍复用 Pi 的注册能力；
 - 学生为自己选择的 Agent Provider 配置凭据，并单独配置 OCR 服务凭据；
 - 每篇论文使用独立项目目录保存输入、过程、结果和会话日志；
@@ -97,7 +97,7 @@ flowchart TD
     PI --> SKILL["殷墟分类 Skill"]
     PI --> TOOLS["PDF / OCR / 校验 / Excel 工具"]
     PI --> LLM["用户在 Pi 中选择的 Provider / Model"]
-    TOOLS --> OCR["SiliconFlow DeepSeek-OCR"]
+    TOOLS --> OCR["PaddleOCR 官方云端 API"]
     PI --> WORKSPACE["论文独立项目目录"]
     WORKSPACE --> REVIEW["结构化复核结果"]
     REVIEW --> UI
@@ -219,7 +219,7 @@ resources/yinxu-classifier/
 | Agent | `@earendil-works/pi-coding-agent` | 会话、Skill、工具、模型编排 |
 | PDF 文本 | PDF.js | 电子 PDF 文本和页码提取 |
 | PDF 渲染 | PDF.js Canvas | 扫描页转图片、页面预览 |
-| OCR | SiliconFlow DeepSeek-OCR | 扫描页、混合页文字识别 |
+| OCR | `@paddleocr/api-sdk` + PaddleOCR 官方云端 API | 所有 PDF 的版面分析和文字识别 |
 | Agent Provider / Model | Pi `AuthStorage` + `ModelRegistry` | 下拉选择 Pi 主流内置厂商，或注册自定义 OpenAI 兼容端点 |
 | 数据校验 | TypeBox + Ajv | JSON Schema 校验和修复提示 |
 | Excel | ExcelJS | 生成论文数据表和分类目录 |
@@ -230,7 +230,7 @@ resources/yinxu-classifier/
 
 依赖版本在实施时锁入 lockfile。设置页提供经过筛选的主流 Pi Provider 下拉菜单；学生填写实际要使用的模型 ID。选择“自定义兼容端点”后才显示 Base URL 输入框，模型 ID 和 Base URL 共同构成该端点的运行配置。
 
-应用不单独维护一份 LLM 厂商适配层。Pi 负责内置 Provider、认证和模型调用；对自定义 OpenAI Chat Completions 兼容端点，Main Process 在本次会话将学生填写的 Base URL 和模型 ID 注册到 `ModelRegistry`。API Key 按内置厂商或规范化 Base URL 分开保存，避免把一个端点的 Key 带到另一个端点。硅基流动在第一版中只是 DeepSeek-OCR 的默认服务，并非 Agent LLM 的固定 Provider。
+应用不单独维护一份 LLM 厂商适配层。Pi 负责内置 Provider、认证和模型调用；对自定义 OpenAI Chat Completions 兼容端点，Main Process 在本次会话将学生填写的 Base URL 和模型 ID 注册到 `ModelRegistry`。API Key 按内置厂商或规范化 Base URL 分开保存，避免把一个端点的 Key 带到另一个端点。OCR 与 Agent LLM 是两套独立服务，OCR 固定调用 PaddleOCR 官方托管 API。
 
 Electron Main Process 已包含 Node.js 运行时，因此安装包不再捆绑第二份 Node.js，也不要求用户安装 Node.js。首版优先使用 Node/TypeScript 库完成 PDF、OCR、校验和 Excel 工作；只有经过技术验证确认某项能力必须依赖 Python 时，才启用下述内置 Python Sidecar 方案。
 
@@ -299,7 +299,7 @@ Agent LLM 认证复用 Pi 的 Provider 系统：
 
 API Key 由 Main Process 使用 Electron `safeStorage` 加密后写入 `credentials.bin`，启动时作为 runtime key 注入 Pi `AuthStorage`。OAuth/订阅凭据继续由 Pi `AuthStorage` 管理并负责刷新。Windows 下 `safeStorage` 使用 DPAPI，密文通常只能由相同 Windows 登录凭据解密。
 
-OCR 认证与 Agent LLM 认证分开。第一版 OCR 默认使用硅基流动 DeepSeek-OCR，因此学生另行填写 SiliconFlow API Key；如果 Agent LLM 也选择硅基流动，可复用同一 Key，但数据结构仍将两个用途分开保存。
+OCR 认证与 Agent LLM 认证分开。学生在设置页另行填写飞桨 AI Studio Access Token；该 Token 使用独立的 `ocr:paddle-official` 储存键加密保存，不与任何 Agent Provider 凭据复用。
 
 应用提供“测试连接”“切换 Provider”“切换模型”“退出登录”和“清除凭据”操作。日志、错误提示和 Agent 上下文均不得输出完整凭据。
 
@@ -352,11 +352,11 @@ Agent 配置：
 
 OCR 配置：
 
-- OCR Provider，第一版默认 SiliconFlow；
-- SiliconFlow Base URL，默认 `https://api.siliconflow.cn/v1`；
-- OCR API Key；
-- OCR 模型，默认 `deepseek-ai/DeepSeek-OCR`；
-- 输出目录。
+- OCR 服务固定为 PaddleOCR 官方云端 API；
+- 服务地址固定为 `https://paddleocr.aistudio-app.com`；
+- 文档解析模型固定为 `PaddleOCR-VL-1.6`；
+- 学生填写飞桨 AI Studio Access Token，并可从设置页打开官方获取页面；
+- 不提供本地、自动或其他 OCR Provider 选项。
 
 ### 8.2 导入页
 
@@ -418,7 +418,7 @@ Main Process 创建项目目录后，以该目录作为 `cwd` 创建 Pi Session�
 Skill 要求 Agent 按以下顺序工作：
 
 1. 检查 PDF 是否可打开、页数和文本覆盖率；
-2. 对电子页直接提取，对扫描页调用 OCR；
+2. 使用 PaddleOCR 官方云端 API 解析整份 PDF；
 3. 合并逐页文本并保留页码边界；
 4. 提取基础元数据；
 5. 判断核心材料载体、研究主题、时期和地点；
@@ -448,7 +448,7 @@ Skill 要求 Agent 按以下顺序工作：
 
 #### `ocr_pdf`
 
-输入 PDF 路径或页码列表，输出逐页 OCR 文本、状态、耗时、Provider Trace ID 和失败页。支持单页重试，不重复处理成功页。
+输入 PDF 路径，使用官方 TypeScript SDK 提交整份文档，输出逐页 Markdown、状态和耗时。临时网络错误可重试；鉴权、参数或页数不一致时立即停止导入。
 
 #### `validate_result`
 
@@ -495,26 +495,13 @@ Agent 负责理解和判断：
 
 ## 10. PDF 与 OCR 流程
 
-### 10.1 页面级检测
+### 10.1 导入检查
 
-PDF 导入后逐页提取文本。页面满足以下任一条件时进入 OCR：
-
-- 提取字符少于 40；
-- 页面有大面积图像，但提取字符少于 100；
-- 文本乱码比例超过 30%；
-- Agent 或学生显式要求重新 OCR。
-
-该逻辑支持混合 PDF：只 OCR 无文本或低质量页面，避免整篇重复上传。
+PDF 导入后先使用 PDF.js 与 MuPDF 检查页数、文件可读性和文本层质量。检查结果只用于审计与质量对照，不会绕过云端 OCR，也不会作为分类文本使用。
 
 ### 10.2 OCR 输入
 
-默认把需要 OCR 的页面渲染为 200 DPI PNG，再通过硅基流动多模态接口逐页提交。保留整份 PDF 直接提交能力作为备用模式，但第一版正常流程使用逐页模式，原因是：
-
-- 可显示精确进度；
-- 单页失败可重试；
-- 能保留页码对应；
-- 更容易限制请求大小；
-- OCR 结果可缓存。
+应用通过 `@paddleocr/api-sdk` 将整份 PDF 提交到 PaddleOCR 官方托管服务，固定使用 `PaddleOCR-VL-1.6`。请求启用版面检测、图表识别和 Markdown 整理，服务返回的页数组必须与原 PDF 页数一致。主论文和 PDF 补充材料使用同一流程。
 
 ### 10.3 OCR 输出质量
 
@@ -532,9 +519,8 @@ OCR 工具不自行修改分类结果，只产生带页码的文本资产。
 ### 10.4 OCR 失败策略
 
 - 网络超时、429 和 5xx 使用指数退避，最多重试三次；
-- 单页连续失败后跳过该页并把项目标红；
-- 已成功页面不重复计费；
-- API Key 无效或余额不足时立即停止并显示可理解的错误；
+- 云端任务失败后停止导入，不使用 PDF 本地文本替代；
+- Access Token 无效或额度不足时立即停止并显示可理解的错误；
 - PDF 加密时提示学生提供可读取版本。
 
 ## 11. 分类决策设计
@@ -613,8 +599,8 @@ Agent 提供的证据必须能在 `text.jsonl` 中找到。允许空白、换行
   "agentProvider": "anthropic",
   "agentModel": "用户实际选择的模型 ID",
   "thinkingLevel": "medium",
-  "ocrProvider": "siliconflow",
-  "ocrModel": "deepseek-ai/DeepSeek-OCR"
+  "ocrProvider": "paddleocr-official",
+  "ocrModel": "PaddleOCR-VL-1.6"
 }
 ```
 
@@ -882,7 +868,7 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 - 殷墟分类 Skill；
 - 72 个三级分类数据化；
 - PDF 电子文本提取；
-- 页面级 DeepSeek-OCR；
+- PaddleOCR 官方云端整篇文档解析；
 - 26 字段结构化结果；
 - 主分类、互见分类、证据和置信度；
 - 人工复核；
@@ -907,7 +893,7 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 
 ### 阶段 0：Windows 技术尖峰
 
-验证 Electron 中嵌入 Pi SDK、Windows 持久化会话、Skill 加载、默认工具、至少两个 Pi 内置 LLM Provider 的认证与模型切换、SiliconFlow OCR 连接、Ant Design 主题和 NSIS 打包。若 Pi 默认 Bash 工具在目标 Windows 环境不可用，论文核心工具仍通过 Electron Main Process 的自定义工具执行；这不改变 Agent 编排方案。若技术尖峰确认必须使用 Python，同时验证内置 uv、CPython、离线虚拟环境和 Sidecar 通信。
+验证 Electron 中嵌入 Pi SDK、Windows 持久化会话、Skill 加载、默认工具、至少两个 Pi 内置 LLM Provider 的认证与模型切换、PaddleOCR 官方 API 连接、Ant Design 主题和 NSIS 打包。若 Pi 默认 Bash 工具在目标 Windows 环境不可用，论文核心工具仍通过 Electron Main Process 的自定义工具执行；这不改变 Agent 编排方案。若技术尖峰确认必须使用 Python，同时验证内置 uv、CPython、离线虚拟环境和 Sidecar 通信。
 
 ### 阶段 1：单篇闭环
 
@@ -933,7 +919,7 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 | Pi 默认 Bash 在 Windows 兼容性不足 | 工具调用失败 | 核心工具通过 Main Process 自定义工具实现 |
 | Agent 路径不稳定 | 相同论文结果差异 | 固定 Skill、模型参数、Schema 和修复次数 |
 | Provider 或模型上下线 | 已保存模型不可用 | 启动时刷新 ModelRegistry，要求学生重新选择可用模型 |
-| DeepSeek-OCR 限流或计费变化 | 失败或成本增加 | 页面缓存、逐页重试、Provider Adapter |
+| PaddleOCR 官方服务限流、额度或版本变化 | 失败或成本增加 | 临时错误重试、明确额度提示、固定 SDK 与模型版本 |
 | OCR 错误导致误分类 | 分类质量下降 | OCR 质量分、证据验证、低置信度复核 |
 | PDF 提示注入 | Agent 非预期行为 | 数据指令隔离提示、独立工作目录和日志；残余风险接受 |
 | 无 Agent 权限系统 | 可访问非目标文件 | 首版明确接受，后续增加工具和路径约束 |
@@ -951,7 +937,7 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 3. Skill 包签名、更新和回滚；
 4. Agent 工具白名单和路径权限；
 5. 本地 Ollama 模型；
-6. 多 Provider OCR；
+6. OCR 服务状态与额度诊断；
 7. 批量任务和统计报告；
 8. 论文问答和分类解释教学模式；
 9. SQLite 项目索引；
@@ -962,9 +948,9 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 - 使用场景为学生 Windows 单机使用；
 - Agent LLM 复用 Pi 内置 Provider 和模型选择能力，不绑定某个厂商或模型；
 - 每位学生使用自己的 Provider 账号、订阅或 API Key；
-- OCR Provider 与 Agent LLM Provider 独立配置，第一版默认使用 SiliconFlow DeepSeek-OCR；
+- OCR 凭据与 Agent LLM Provider 独立配置，OCR 固定使用 PaddleOCR 官方托管服务；
 - 支持电子和扫描 PDF；
-- OCR 使用云端 DeepSeek-OCR；
+- OCR 固定使用云端 `PaddleOCR-VL-1.6`；
 - AI 自动填写，学生主要复核低置信度项；
 - 采用 Electron + Pi SDK + Skill；
 - Pi Agent 是第一版编排内核；
@@ -983,9 +969,9 @@ M–X 属于数字化扩展字段。若论文缺乏视觉材料或证据，允�
 - [Pi Providers](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md)
 - [Pi Models](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md)
 - [Pi 项目](https://github.com/earendil-works/pi)
-- [SiliconFlow 多模态输入](https://api-docs.siliconflow.cn/docs/userguide/capabilities/multimodal-vision)
-- [SiliconFlow Chat Completions](https://docs.siliconflow.cn/cn/api-reference/chat-completions/chat-completions)
-- [DeepSeek-OCR 官方模型](https://huggingface.co/deepseek-ai/DeepSeek-OCR)
+- [PaddleOCR 官方 API 概览](https://www.paddleocr.ai/main/version3.x/inference_deployment/serving/paddleocr_official_api/overview.html)
+- [PaddleOCR 官方 TypeScript SDK](https://www.paddleocr.ai/main/version3.x/inference_deployment/serving/paddleocr_official_api/typescript.html)
+- [飞桨 AI Studio Access Token](https://aistudio.baidu.com/account/accessToken)
 - [Electron safeStorage](https://www.electronjs.org/docs/latest/api/safe-storage)
 - [Electron 安全指南](https://www.electronjs.org/docs/latest/tutorial/security)
 - [electron-builder Windows](https://www.electron.build/docs/win/)

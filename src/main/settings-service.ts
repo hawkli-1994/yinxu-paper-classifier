@@ -1,8 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
-  DEEPSEEK_OCR_MODEL_ID,
-  SILICONFLOW_OCR_BASE_URL,
+  PADDLE_OCR_BASE_URL,
+  PADDLE_OCR_MODEL_ID,
   type AppSettings,
   type GlobalMemorySettings
 } from '../shared/contracts';
@@ -10,7 +10,7 @@ import { isCustomProvider, normalizeAgentBaseUrl } from '../shared/provider-conf
 
 const defaultSettings: AppSettings = {
   agent: { provider: '', modelId: '', thinkingLevel: 'medium' },
-  ocr: { mode: 'cloud', baseUrl: SILICONFLOW_OCR_BASE_URL, model: DEEPSEEK_OCR_MODEL_ID },
+  ocr: { mode: 'cloud', baseUrl: PADDLE_OCR_BASE_URL, model: PADDLE_OCR_MODEL_ID },
   memory: { enabled: true, globalGuidance: '', revision: 0, history: [] }
 };
 
@@ -39,11 +39,9 @@ const normalizeSettings = (settings: StoredSettings): AppSettings => ({
     baseUrl: isCustomProvider(settings.agent?.provider ?? '') ? normalizeAgentBaseUrl(settings.agent?.baseUrl) : undefined
   },
   ocr: {
-    // Legacy auto/local settings and the former direct Paddle VLM call are
-    // intentionally migrated to the single supported cloud OCR pipeline.
     mode: 'cloud',
-    baseUrl: SILICONFLOW_OCR_BASE_URL,
-    model: DEEPSEEK_OCR_MODEL_ID
+    baseUrl: PADDLE_OCR_BASE_URL,
+    model: PADDLE_OCR_MODEL_ID
   },
   memory: normalizeMemorySettings(settings.memory)
 });
