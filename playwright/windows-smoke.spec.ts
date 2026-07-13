@@ -217,6 +217,18 @@ const runClassificationScenario = async (options: {
     await expect(window).toHaveTitle('殷墟论文分类助手');
     await expect(window.locator('vite-error-overlay')).toHaveCount(0);
 
+    const exportPaths = [
+      join(fixtureRoot, `${options.mode}-classification.xlsx`),
+      join(fixtureRoot, `${options.mode}-classification-second.xlsx`)
+    ];
+    await app.evaluate(({ dialog }, paths) => {
+      let nextPath = 0;
+      dialog.showSaveDialog = async () => ({
+        canceled: false,
+        filePath: paths[Math.min(nextPath++, paths.length - 1)]
+      });
+    }, exportPaths);
+
     const saved = await saveModeSettings(window, options.mode, options.kimiApiKey, options.ocrApiKey);
     expect(saved.hasAgentKey).toBe(true);
     expect(saved.hasOcrKey).toBe(Boolean(options.ocrApiKey));
@@ -236,6 +248,7 @@ const runClassificationScenario = async (options: {
       async (projectId) => globalThis.window.yinxu.exportWorkbook(projectId),
       created.project.id
     );
+    if (!workbookPath) throw new Error('The workbook save dialog did not return a target path.');
     const outcome = {
       projectId: created.project.id,
       preparation: created.preparation,
