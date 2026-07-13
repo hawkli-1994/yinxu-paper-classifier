@@ -1,0 +1,79 @@
+name: Windows packaged-app smoke test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-packaged-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Install and run real Windows workflow
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      KIMI_API_KEY: ${{ secrets.KIMIAPIKEY }}
+      OCR_API_KEY: ${{ secrets.OCRAPIKEY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify required secrets
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:KIMI_API_KEY)) { throw 'Repository secret KIMIAPIKEY is missing.' }
+          if ([string]::IsNullOrWhiteSpace($env:OCR_API_KEY)) { throw 'Repository secret OCRAPIKEY is missing.' }
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run static checks and unit tests
+        run: |
+          npm run typecheck
+          npm run test:run
+
+      - name: Build Windows installers
+        run: npm run package:win
+
+      - name: Install packaged application
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path release -Filter '*Setup*.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer was not produced.' }
+          $installDir = Join-Path $env:RUNNER_TEMP 'yinxu-smoke-installed'
+          $process = Start-Process -FilePath $installer.FullName -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer exited with code $($process.ExitCode)." }
+          $application = Get-ChildItem -Path $installDir -Filter '*.exe' |
+            Where-Object { $_.Name -notmatch 'uninstall' } |
+            Select-Object -First 1
+          if (-not $application) { throw 'Installed application executable was not found.' }
+          "YINXU_SMOKE_EXECUTABLE=$($application.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run cloud OCR and Kimi end-to-end smoke test
+        run: npm run test:smoke:win
+
+      - name: Upload tested Windows installers
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yinxu-windows-${{ github.sha }}
+          path: |
+            release/*Setup*.exe
+            release/*Setup*.exe.blockmap
+            release/*.exe
+            release/*.exe.blockmap
+          if-no-files-found: error
+          retention-days: 7

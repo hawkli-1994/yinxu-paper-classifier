@@ -12,6 +12,7 @@
     "test:run": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:e2e": "npm run build && playwright test",
+    "test:smoke:win": "playwright test --config playwright.windows.config.ts",
     "evaluate:quality": "tsx tests/quality/evaluate.ts",
     "prepare:win-native": "node scripts/prepare-win-native.mjs",
     "prepare:git-bash": "node scripts/prepare-git-bash.mjs",
