@@ -2,9 +2,10 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { PDFDocument } from '@pdfme/pdf-lib';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import mupdf from 'mupdf';
 import type { PageText, TextPreparationReport } from '../shared/contracts';
+import './pdfjs-node-compat';
+import type { PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 const pdfJsRoot = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
 export const toPdfJsFactoryUrl = (directory: string): string => `${directory.replace(/\\/g, '/').replace(/\/+$/, '')}/`;
@@ -26,7 +27,11 @@ export interface PdfInspection {
 export const countUsableTextCharacters = (texts: readonly string[]): number =>
   texts.join('').replace(/<!-- page:\d+ -->/g, '').replace(/\s/g, '').length;
 
-const textFromPdfPage = async (page: Awaited<ReturnType<Awaited<ReturnType<typeof getDocument>['promise']>['getPage']>>): Promise<string> => {
+let pdfJsModule: Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> | undefined;
+const loadPdfJs = (): Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> =>
+  (pdfJsModule ??= import('pdfjs-dist/legacy/build/pdf.mjs'));
+
+const textFromPdfPage = async (page: PDFPageProxy): Promise<string> => {
   const content = await page.getTextContent();
   return content.items
     .map((item) => {
@@ -85,6 +90,7 @@ export const inspectPdfBytes = async (content: Uint8Array): Promise<PdfInspectio
   } catch {
     // PDF.js remains the primary extractor; malformed or encrypted PDFs may not open in MuPDF.
   }
+  const { getDocument } = await loadPdfJs();
   const loadingTask = getDocument({ data: new Uint8Array(content), ...pdfJsDocumentOptions });
   const document = await loadingTask.promise;
   const pageCount = document.numPages;
