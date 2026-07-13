@@ -23,13 +23,16 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm
+
+      - name: Verify Node.js 24 runtime
+        run: node -e "const major = Number(process.versions.node.split('.')[0]); if (major !== 24) throw new Error('Expected Node.js 24, received ' + process.version); console.log('Using ' + process.version)"
 
       - name: Verify required secrets
         shell: pwsh
@@ -67,7 +70,7 @@ jobs:
 
       - name: Upload tested Windows installers
         if: success()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: yinxu-windows-${{ github.sha }}
           path: |
