@@ -163,7 +163,18 @@ const runClassificationScenario = async (options: {
         supplementalFiles: [],
         supplementalNotes: []
       });
-      const classified = await window.yinxu.runClassification(created.project.id);
+      let classified: Awaited<ReturnType<typeof window.yinxu.runClassification>> | undefined;
+      let classificationAttempts = 0;
+      while (!classified && classificationAttempts < 2) {
+        classificationAttempts += 1;
+        try {
+          classified = await window.yinxu.runClassification(created.project.id);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          if (classificationAttempts >= 2 || !detail.includes('DraftValidationError')) throw error;
+        }
+      }
+      if (!classified) throw new Error('Classification did not return a workspace.');
       if (!classified.result) throw new Error('Classification completed without a structured result.');
       const completedRun = classified.runs.find((run) => run.status === 'completed');
       if (!completedRun) throw new Error('No completed classification run was recorded.');
@@ -176,6 +187,7 @@ const runClassificationScenario = async (options: {
         primaryCategoryCode: classified.result.primaryCategoryCode,
         candidateCount: classified.result.candidates.length,
         evidenceCount: classified.result.evidence.length,
+        classificationAttempts,
         workbookPath
       };
     }, options.paperPath);
@@ -189,7 +201,8 @@ const runClassificationScenario = async (options: {
       localFallbackPages: outcome.preparation.textReport?.localFallbackPages ?? [],
       pageSources: outcome.preparation.textReport?.pages.map((page) => page.source) ?? [],
       primaryCategoryCode: outcome.primaryCategoryCode,
-      evidenceCount: outcome.evidenceCount
+      evidenceCount: outcome.evidenceCount,
+      classificationAttempts: outcome.classificationAttempts
     }));
 
     options.verifyPreparation(outcome.preparation);
