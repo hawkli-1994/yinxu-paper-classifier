@@ -62,4 +62,43 @@ describe('supplement service', () => {
 
     await expect(addSupplementalFiles(project, [{ path: unsupported, kind: 'other' }])).rejects.toThrow('只支持 PDF、TXT 和 Markdown');
   });
+
+  it('routes PDF supplements through the supplied cloud OCR extractor', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-supplement-'));
+    roots.push(root);
+    const source = join(root, 'paper.pdf');
+    const supplement = join(root, 'scanned-appendix.pdf');
+    await Promise.all([createFixturePdf(source), createFixturePdf(supplement)]);
+    const project = await createProject(source, root, '2.0.1');
+    const receivedPaths: string[] = [];
+
+    const materials = await addSupplementalFiles(
+      project,
+      [{ path: supplement, kind: 'appendix' }],
+      async (path) => {
+        receivedPaths.push(path);
+        return { text: '<!-- supplement-page:1 -->\n云端 OCR 附录内容', status: 'ready' };
+      }
+    );
+
+    expect(receivedPaths).toHaveLength(1);
+    expect(receivedPaths[0]).toBe(materials[0]?.storedPath);
+    expect(await readFile(materials[0]!.extractedTextPath, 'utf8')).toContain('云端 OCR 附录内容');
+  });
+
+  it('rejects a PDF supplement when cloud OCR fails instead of silently adding empty text', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-supplement-'));
+    roots.push(root);
+    const source = join(root, 'paper.pdf');
+    const supplement = join(root, 'scanned-appendix.pdf');
+    await Promise.all([createFixturePdf(source), createFixturePdf(supplement)]);
+    const project = await createProject(source, root, '2.0.1');
+
+    await expect(addSupplementalFiles(
+      project,
+      [{ path: supplement, kind: 'appendix' }],
+      async () => { throw new Error('云端 OCR 鉴权失败'); }
+    )).rejects.toThrow('云端 OCR 鉴权失败');
+    expect(await listSupplementalMaterials(project)).toEqual([]);
+  });
 });

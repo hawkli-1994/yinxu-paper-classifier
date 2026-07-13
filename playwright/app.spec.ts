@@ -33,6 +33,21 @@ test('manages local paper projects, supplements, workspace tabs, and independent
   const app = await electron.launch({ args: ['.', `--user-data-dir=${userData}`] });
   try {
     const window = await app.firstWindow();
+    await app.evaluate(() => {
+      globalThis.fetch = async () => new Response(JSON.stringify({
+        choices: [{ finish_reason: 'stop', message: { content: '云端测试识别结果：本文讨论殷墟甲骨卜辞、祭祀制度、考古背景与材料释读方法，并依据出土信息分析主要结论。' } }]
+      }), { status: 200, headers: { 'x-siliconcloud-trace-id': 'e2e-trace' } });
+    });
+    await window.evaluate(async () => {
+      const current = await window.yinxu.getSettings();
+      await window.yinxu.saveSettings({
+        agent: current.agent,
+        ocr: current.ocr,
+        memory: current.memory,
+        ocrApiKey: 'e2e-ocr-key'
+      });
+    });
+    await window.reload();
     const consoleIssues: string[] = [];
     window.on('console', (entry) => {
       if (entry.type() === 'error' || entry.type() === 'warning') consoleIssues.push(entry.text());
@@ -98,6 +113,10 @@ test('manages local paper projects, supplements, workspace tabs, and independent
     await window.getByRole('button', { name: '设置' }).click();
     await expect(window.getByRole('heading', { name: 'AI 模型与 OCR 设置' })).toBeVisible();
     await expect(window.getByText('AI 分类模型')).toBeVisible();
+    await expect(window.getByText('deepseek-ai/DeepSeek-OCR')).toBeVisible();
+    await expect(window.getByText('OCR 执行模式')).toHaveCount(0);
+    await expect(window.getByText('自动', { exact: true })).toHaveCount(0);
+    await expect(window.getByText('本地', { exact: true })).toHaveCount(0);
     await window.waitForTimeout(250);
     await window.screenshot({ path: '/tmp/yinxu-copy-settings.png' });
     await window.getByRole('button', { name: '全局规则与记忆' }).click();

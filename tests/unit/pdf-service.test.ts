@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
-import { buildTextPreparationReport, countUsableTextCharacters, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, toPdfJsFactoryUrl, writeExtractedText } from '../../src/main/pdf-service';
+import { buildTextPreparationReport, countUsableTextCharacters, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, toPdfJsFactoryUrl, writeExtractedText } from '../../src/main/pdf-service';
 import { createFixturePdf } from '../fixtures/pdf';
 
 const roots: string[] = [];
@@ -70,24 +70,12 @@ describe('PDF inspection', () => {
     expect(pages[0]).toContain('MuPDF local fallback');
   });
 
-  it('renders a PDF page as PNG for image-only OCR providers', async () => {
-    const document = await PDFDocument.create();
-    const font = await document.embedFont(StandardFonts.Helvetica);
-    const page = document.addPage([595, 842]);
-    page.drawText('rendered OCR page', { x: 48, y: 780, size: 14, font });
-
-    const png = await renderPdfPageToPng(await document.save());
-
-    expect([...png.slice(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    expect(png.byteLength).toBeGreaterThan(1000);
-  });
-
   it('writes complete bounded chunks and a deterministic text-quality report', async () => {
     const root = await mkdtemp(join(tmpdir(), 'yinxu-text-'));
     roots.push(root);
     const pages = [
       { page: 1, text: `第一页${'甲'.repeat(80)}`, source: 'embedded' as const },
-      { page: 2, text: `第二页${'乙'.repeat(80)}`, source: 'ocr' as const },
+      { page: 2, text: '第二页云端识别文本：本文讨论殷墟甲骨材料、祭祀制度、出土背景、释读方法以及相关学术结论，内容完整且不存在异常重复。', source: 'ocr' as const },
       { page: 3, text: `第三页${'丙'.repeat(80)}`, source: 'embedded' as const }
     ];
     const report = buildTextPreparationReport(pages, [2]);

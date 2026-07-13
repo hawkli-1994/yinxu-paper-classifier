@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { loadSettings, saveSettings } from '../../src/main/settings-service';
+import { DEEPSEEK_OCR_MODEL_ID, SILICONFLOW_OCR_BASE_URL } from '../../src/shared/contracts';
 
 const roots: string[] = [];
 
@@ -16,7 +17,7 @@ describe('settings service', () => {
     roots.push(root);
 
     expect((await loadSettings(root)).agent).toMatchObject({ provider: '' });
-    expect((await loadSettings(root)).ocr).toMatchObject({ mode: 'auto', model: 'PaddlePaddle/PaddleOCR-VL-1.5' });
+    expect((await loadSettings(root)).ocr).toEqual({ mode: 'cloud', baseUrl: SILICONFLOW_OCR_BASE_URL, model: DEEPSEEK_OCR_MODEL_ID });
     await saveSettings(root, {
       agent: { provider: 'openai', modelId: 'gpt-test', thinkingLevel: 'medium' },
       ocr: { mode: 'cloud', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
@@ -41,11 +42,30 @@ describe('settings service', () => {
         baseUrl: ' https://llm.example.com/v1/ ',
         thinkingLevel: 'medium'
       },
-      ocr: { mode: 'local', baseUrl: 'https://api.siliconflow.cn/v1', model: 'deepseek-ai/DeepSeek-OCR' },
+      ocr: { mode: 'cloud', baseUrl: SILICONFLOW_OCR_BASE_URL, model: DEEPSEEK_OCR_MODEL_ID },
       memory: { enabled: false, globalGuidance: '', revision: 0, history: [] }
     });
 
     expect((await loadSettings(root)).agent.baseUrl).toBe('https://llm.example.com/v1');
+  });
+
+  it('migrates former local, automatic, custom endpoint, and Paddle settings to the supported cloud pipeline', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'yinxu-settings-'));
+    roots.push(root);
+    await mkdir(join(root, 'config'), { recursive: true });
+    await writeFile(join(root, 'config', 'settings.json'), JSON.stringify({
+      ocr: {
+        mode: 'local',
+        baseUrl: 'https://untrusted.example.com/v1',
+        model: 'PaddlePaddle/PaddleOCR-VL-1.5'
+      }
+    }));
+
+    expect((await loadSettings(root)).ocr).toEqual({
+      mode: 'cloud',
+      baseUrl: SILICONFLOW_OCR_BASE_URL,
+      model: DEEPSEEK_OCR_MODEL_ID
+    });
   });
 
   it('migrates the former hidden personal prompt into global guidance', async () => {

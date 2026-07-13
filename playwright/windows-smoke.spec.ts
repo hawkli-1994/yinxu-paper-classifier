@@ -4,32 +4,10 @@ import { spawn } from 'node:child_process';
 import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
-
-type OcrMode = 'auto' | 'local' | 'cloud';
+import { PDFDocument } from '@pdfme/pdf-lib';
 
 const classificationAttemptTimeoutMs = 6 * 60_000;
 const classificationCancellationTimeoutMs = 30_000;
-
-const paperLines = [
-  'Yinxu Oracle Bone Divination Inscriptions: A Contextual Study',
-  'Author: Li Ming',
-  'Abstract',
-  'This paper studies oracle bone divination inscriptions excavated at Xiaotun, Anyang.',
-  'The corpus contains inscriptions concerning royal sacrifice, weather, hunting, and warfare.',
-  'Our primary materials are inscribed cattle scapulae and turtle plastrons from Yinxu.',
-  'The analysis compares charge, prognostication, verification, and crack notation in each text.',
-  'Archaeological context and joins between fragments are used to reconstruct inscription groups.',
-  'Section 1. Materials and archaeological context',
-  'All examples discussed here come from scientifically excavated Yinxu oracle-bone deposits.',
-  'The find spots, fragment numbers, transcription, and physical joins are recorded together.',
-  'Section 2. Divination formulae',
-  'Recurring formulae reveal how Shang royal diviners organized sacrifice and military inquiry.',
-  'The evidence supports classifying this study primarily as research on oracle bone inscriptions.',
-  'Conclusion',
-  'Oracle-bone text, material form, and excavation context must be interpreted as one evidence set.',
-  'Keywords: Yinxu; oracle bone inscriptions; divination; Xiaotun; Shang dynasty.'
-];
 
 const scannedPaperLines = [
   'Yinxu Oracle Bone Inscriptions',
@@ -49,21 +27,6 @@ const scannedPaperLines = [
   'The primary subject is oracle bone inscriptions.',
   'Keywords: Yinxu, oracle bones, divination, Shang.'
 ];
-
-const createEmbeddedTextPaper = async (targetPath: string): Promise<void> => {
-  const document = await PDFDocument.create();
-  const page = document.addPage([595, 842]);
-  const font = await document.embedFont(StandardFonts.Helvetica);
-  paperLines.forEach((line, index) => {
-    page.drawText(line, {
-      x: 42,
-      y: 792 - index * 35,
-      size: index === 0 ? 15 : 11,
-      font
-    });
-  });
-  await writeFile(targetPath, await document.save());
-};
 
 const createScannedPaper = async (targetPath: string): Promise<void> => {
   const canvas = createCanvas(1200, 1680);
@@ -103,13 +66,12 @@ const launchSecondInstance = async (executablePath: string, userData: string): P
     });
   });
 
-const saveModeSettings = async (
+const saveCloudSettings = async (
   window: Page,
-  mode: OcrMode,
   kimiApiKey: string,
-  ocrApiKey?: string
+  ocrApiKey: string
 ): Promise<{ hasAgentKey: boolean; hasOcrKey: boolean }> =>
-  window.evaluate(async ({ mode, kimiApiKey, ocrApiKey }) => {
+  window.evaluate(async ({ kimiApiKey, ocrApiKey }) => {
     const current = await window.yinxu.getSettings();
     const saved = await window.yinxu.saveSettings({
       agent: {
@@ -118,21 +80,21 @@ const saveModeSettings = async (
         thinkingLevel: 'medium'
       },
       ocr: {
-        mode,
+        mode: 'cloud',
         baseUrl: 'https://api.siliconflow.cn/v1',
-        model: 'PaddlePaddle/PaddleOCR-VL-1.5'
+        model: 'deepseek-ai/DeepSeek-OCR'
       },
       memory: current.memory,
       agentApiKey: kimiApiKey,
       ocrApiKey
     });
     return { hasAgentKey: saved.hasAgentKey, hasOcrKey: saved.hasOcrKey };
-  }, { mode, kimiApiKey, ocrApiKey });
+  }, { kimiApiKey, ocrApiKey });
 
 const runClassificationWithRetry = async (
   window: Page,
   projectId: string,
-  mode: OcrMode
+  scenario: string
 ): Promise<{
   workspace: Awaited<ReturnType<typeof globalThis.window.yinxu.runClassification>>;
   attempts: number;
@@ -141,7 +103,7 @@ const runClassificationWithRetry = async (
     let attemptTimedOut = false;
     let attemptTimer: ReturnType<typeof setTimeout> | undefined;
     const heartbeat = setInterval(() => {
-      console.log(`[${mode}] classification attempt ${attempts} is still running.`);
+      console.log(`[${scenario}] classification attempt ${attempts} is still running.`);
     }, 60_000);
     const classification = window.evaluate(
       async (id) => globalThis.window.yinxu.runClassification(id),
@@ -159,7 +121,7 @@ const runClassificationWithRetry = async (
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       if (attemptTimedOut) {
-        console.warn(`[${mode}] classification attempt ${attempts} timed out; cancelling the run.`);
+        console.warn(`[${scenario}] classification attempt ${attempts} timed out; cancelling the run.`);
         const cancellation = window.evaluate(
           async (id) => globalThis.window.yinxu.cancelClassification(id),
           projectId
@@ -184,7 +146,7 @@ const runClassificationWithRetry = async (
 
       const retryable = attemptTimedOut || detail.includes('DraftValidationError');
       if (!retryable || attempts >= 2) throw error;
-      console.warn(`[${mode}] retrying classification after attempt ${attempts}.`);
+      console.warn(`[${scenario}] retrying classification after attempt ${attempts}.`);
     } finally {
       clearInterval(heartbeat);
       if (attemptTimer) clearTimeout(attemptTimer);
@@ -195,24 +157,26 @@ const runClassificationWithRetry = async (
 };
 
 const runClassificationScenario = async (options: {
-  mode: OcrMode;
+  scenario: string;
   paperPath: string;
   kimiApiKey: string;
-  ocrApiKey?: string;
+  ocrApiKey: string;
   verifyPreparation: (preparation: {
     ocrApplied: boolean;
     pagesNeedingOcr: number[];
     textReport?: {
-      ocrMode?: OcrMode;
+      ocrMode?: 'cloud';
+      ocrProvider?: string;
+      ocrModel?: string;
+      ocrPromptProfile?: string;
       ocrAppliedPages: number[];
       cloudAttemptedPages?: number[];
-      localFallbackPages?: number[];
-      pages: Array<{ source: 'embedded' | 'ocr' | 'mixed'; characterCount: number }>;
+      pages: Array<{ source: 'embedded' | 'ocr' | 'mixed'; characterCount: number; ocrAttempts?: number }>;
     };
   }) => void;
 }): Promise<{ projectId: string; workbookPath: string; window: Page; close: () => Promise<void> }> => {
   const executablePath = process.env.YINXU_SMOKE_EXECUTABLE!;
-  const fixtureRoot = await mkdtemp(join(tmpdir(), `yinxu-${options.mode}-smoke-`));
+  const fixtureRoot = await mkdtemp(join(tmpdir(), `yinxu-${options.scenario}-smoke-`));
   const userData = join(fixtureRoot, 'user-data');
   const app = await electron.launch({ executablePath, args: [`--user-data-dir=${userData}`] });
 
@@ -222,8 +186,8 @@ const runClassificationScenario = async (options: {
     await expect(window.locator('vite-error-overlay')).toHaveCount(0);
 
     const exportPaths = [
-      join(fixtureRoot, `${options.mode}-classification.xlsx`),
-      join(fixtureRoot, `${options.mode}-classification-second.xlsx`)
+      join(fixtureRoot, `${options.scenario}-classification.xlsx`),
+      join(fixtureRoot, `${options.scenario}-classification-second.xlsx`)
     ];
     await app.evaluate(({ dialog }, paths) => {
       let nextPath = 0;
@@ -233,25 +197,37 @@ const runClassificationScenario = async (options: {
       });
     }, exportPaths);
 
-    console.log(`[${options.mode}] configuring providers.`);
-    const saved = await saveModeSettings(window, options.mode, options.kimiApiKey, options.ocrApiKey);
+    console.log(`[${options.scenario}] configuring providers.`);
+    const saved = await saveCloudSettings(window, options.kimiApiKey, options.ocrApiKey);
     expect(saved.hasAgentKey).toBe(true);
-    expect(saved.hasOcrKey).toBe(Boolean(options.ocrApiKey));
+    expect(saved.hasOcrKey).toBe(true);
 
-    console.log(`[${options.mode}] importing and preparing the paper.`);
+    console.log(`[${options.scenario}] importing and preparing the paper.`);
     const created = await window.evaluate(async (paperPath) =>
       globalThis.window.yinxu.createProject({
         sourcePdfPath: paperPath,
         supplementalFiles: [],
         supplementalNotes: []
       }), options.paperPath);
-    console.log(`[${options.mode}] paper prepared; starting classification.`);
-    const classification = await runClassificationWithRetry(window, created.project.id, options.mode);
+    console.log(JSON.stringify({
+      stage: 'ocr-only',
+      ocrMode: created.preparation.textReport?.ocrMode,
+      ocrProvider: created.preparation.textReport?.ocrProvider,
+      ocrModel: created.preparation.textReport?.ocrModel,
+      ocrPromptProfile: created.preparation.textReport?.ocrPromptProfile,
+      cloudAttemptedPages: created.preparation.textReport?.cloudAttemptedPages ?? [],
+      ocrAppliedPages: created.preparation.textReport?.ocrAppliedPages ?? [],
+      pageSources: created.preparation.textReport?.pages.map((page) => page.source) ?? [],
+      characterCounts: created.preparation.textReport?.pages.map((page) => page.characterCount) ?? []
+    }));
+    options.verifyPreparation(created.preparation);
+    console.log(`[${options.scenario}] paper prepared; starting classification.`);
+    const classification = await runClassificationWithRetry(window, created.project.id, options.scenario);
     const classified = classification.workspace;
     if (!classified.result) throw new Error('Classification completed without a structured result.');
     const completedRun = classified.runs.find((run) => run.status === 'completed');
     if (!completedRun) throw new Error('No completed classification run was recorded.');
-    console.log(`[${options.mode}] classification completed; exporting the workbook.`);
+    console.log(`[${options.scenario}] classification completed; exporting the workbook.`);
     const workbookPath = await window.evaluate(
       async (projectId) => globalThis.window.yinxu.exportWorkbook(projectId),
       created.project.id
@@ -270,19 +246,19 @@ const runClassificationScenario = async (options: {
     };
 
     console.log(JSON.stringify({
-      mode: options.mode,
       ocrMode: outcome.preparation.textReport?.ocrMode,
+      ocrProvider: outcome.preparation.textReport?.ocrProvider,
+      ocrModel: outcome.preparation.textReport?.ocrModel,
+      ocrPromptProfile: outcome.preparation.textReport?.ocrPromptProfile,
       pagesNeedingReview: outcome.preparation.pagesNeedingOcr,
       cloudAttemptedPages: outcome.preparation.textReport?.cloudAttemptedPages ?? [],
       ocrAppliedPages: outcome.preparation.textReport?.ocrAppliedPages ?? [],
-      localFallbackPages: outcome.preparation.textReport?.localFallbackPages ?? [],
       pageSources: outcome.preparation.textReport?.pages.map((page) => page.source) ?? [],
       primaryCategoryCode: outcome.primaryCategoryCode,
       evidenceCount: outcome.evidenceCount,
       classificationAttempts: outcome.classificationAttempts
     }));
 
-    options.verifyPreparation(outcome.preparation);
     expect(outcome.provider).toBe('kimi-coding');
     expect(outcome.model).toBe('kimi-for-coding');
     expect(outcome.primaryCategoryCode).not.toBe('');
@@ -331,48 +307,27 @@ test('installed app enforces a single writable instance', async () => {
   }
 });
 
-test('local mode uses only on-device PDF parsing and completes classification', async () => {
-  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-local-paper-'));
-  const paperPath = join(fixtureRoot, 'embedded-yinxu-paper.pdf');
-  await createEmbeddedTextPaper(paperPath);
+test('official DeepSeek-OCR cloud pipeline recognizes a scanned PDF and completes classification', async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-deepseek-cloud-paper-'));
+  const paperPath = join(fixtureRoot, 'scanned-yinxu-paper.pdf');
+  await createScannedPaper(paperPath);
   try {
     const scenario = await runClassificationScenario({
-      mode: 'local',
-      paperPath,
-      kimiApiKey: process.env.KIMI_API_KEY!,
-      verifyPreparation: (preparation) => {
-        expect(preparation.textReport?.ocrMode).toBe('local');
-        expect(preparation.ocrApplied).toBe(false);
-        expect(preparation.textReport?.cloudAttemptedPages ?? []).toEqual([]);
-        expect(preparation.textReport?.ocrAppliedPages ?? []).toEqual([]);
-        expect(preparation.textReport?.localFallbackPages ?? []).toEqual([]);
-        expect(preparation.textReport?.pages[0]?.source).toBe('embedded');
-        expect(preparation.textReport?.pages[0]?.characterCount).toBeGreaterThan(40);
-      }
-    });
-    await scenario.close();
-  } finally {
-    await rm(fixtureRoot, { recursive: true, force: true });
-  }
-});
-
-test('cloud mode forces every page through SiliconFlow and completes classification', async () => {
-  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-cloud-paper-'));
-  const paperPath = join(fixtureRoot, 'embedded-yinxu-paper.pdf');
-  await createEmbeddedTextPaper(paperPath);
-  try {
-    const scenario = await runClassificationScenario({
-      mode: 'cloud',
+      scenario: 'deepseek-cloud',
       paperPath,
       kimiApiKey: process.env.KIMI_API_KEY!,
       ocrApiKey: process.env.OCR_API_KEY!,
       verifyPreparation: (preparation) => {
         expect(preparation.textReport?.ocrMode).toBe('cloud');
-        expect(preparation.ocrApplied).toBe(true);
+        expect(preparation.textReport?.ocrProvider).toBe('siliconflow');
+        expect(preparation.textReport?.ocrModel).toBe('deepseek-ai/DeepSeek-OCR');
+        expect(preparation.textReport?.ocrPromptProfile).toBe('deepseek-free-ocr-v1');
         expect(preparation.textReport?.cloudAttemptedPages).toEqual([1]);
         expect(preparation.textReport?.ocrAppliedPages).toEqual([1]);
-        expect(preparation.textReport?.localFallbackPages).toEqual([]);
+        expect(preparation.ocrApplied).toBe(true);
         expect(preparation.textReport?.pages[0]?.source).toBe('ocr');
+        expect(preparation.textReport?.pages[0]?.characterCount).toBeGreaterThan(40);
+        expect(preparation.textReport?.pages[0]?.ocrAttempts).toBeGreaterThanOrEqual(1);
       }
     });
 
@@ -382,33 +337,6 @@ test('cloud mode forces every page through SiliconFlow and completes classificat
     );
     expect(secondWorkbookPath).not.toBe(scenario.workbookPath);
     await access(secondWorkbookPath);
-    await scenario.close();
-  } finally {
-    await rm(fixtureRoot, { recursive: true, force: true });
-  }
-});
-
-test('automatic mode detects a scanned page, prefers cloud OCR, and completes classification', async () => {
-  const fixtureRoot = await mkdtemp(join(tmpdir(), 'yinxu-auto-paper-'));
-  const paperPath = join(fixtureRoot, 'scanned-yinxu-paper.pdf');
-  await createScannedPaper(paperPath);
-  try {
-    const scenario = await runClassificationScenario({
-      mode: 'auto',
-      paperPath,
-      kimiApiKey: process.env.KIMI_API_KEY!,
-      ocrApiKey: process.env.OCR_API_KEY!,
-      verifyPreparation: (preparation) => {
-        expect(preparation.textReport?.ocrMode).toBe('auto');
-        expect(preparation.textReport?.cloudAttemptedPages).toEqual([1]);
-        const cloudWasApplied = preparation.textReport?.ocrAppliedPages.includes(1) ?? false;
-        const localWasUsed = preparation.textReport?.localFallbackPages?.includes(1) ?? false;
-        expect(cloudWasApplied).not.toBe(localWasUsed);
-        expect(preparation.ocrApplied).toBe(cloudWasApplied);
-        expect(preparation.textReport?.pages[0]?.source).toBe(cloudWasApplied ? 'ocr' : 'embedded');
-        expect(preparation.textReport?.pages[0]?.characterCount).toBeGreaterThan(40);
-      }
-    });
     await scenario.close();
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
