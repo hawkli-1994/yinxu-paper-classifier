@@ -279,7 +279,10 @@ test('automatic mode detects a scanned page, prefers cloud OCR, and completes cl
       ocrApiKey: process.env.OCR_API_KEY!,
       verifyPreparation: (preparation) => {
         expect(preparation.textReport?.ocrMode).toBe('auto');
-        expect(preparation.pagesNeedingOcr).toEqual([1]);
+        // The workspace exposes unresolved pages after processing. A successful
+        // automatic cloud pass therefore clears this list; cloudAttemptedPages
+        // below proves that the scanned page was detected and submitted.
+        expect(preparation.pagesNeedingOcr).toEqual([]);
         expect(preparation.ocrApplied).toBe(true);
         expect(preparation.textReport?.cloudAttemptedPages).toEqual([1]);
         expect(preparation.textReport?.ocrAppliedPages).toEqual([1]);
