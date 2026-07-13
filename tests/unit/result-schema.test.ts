@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DraftValidationError, parseAgentDraft } from '../../src/shared/result-schema';
+import { DraftValidationError, parseAgentDraft, parseAgentDraftJson } from '../../src/shared/result-schema';
 import { makeAgentDraft } from '../fixtures/paper-result';
 
 describe('agent draft schema', () => {
@@ -17,6 +17,15 @@ describe('agent draft schema', () => {
     } catch (error) {
       expect((error as DraftValidationError).issues.join(' ')).toContain('fieldAssessments');
       expect((error as DraftValidationError).issues.join(' ')).toContain('confidence');
+    }
+  });
+
+  it('reports malformed JSON as a retryable draft validation error', () => {
+    expect(() => parseAgentDraftJson("{'primaryCategoryCode': 'B41'}")).toThrow(DraftValidationError);
+    try {
+      parseAgentDraftJson("{'primaryCategoryCode': 'B41'}");
+    } catch (error) {
+      expect((error as DraftValidationError).issues.join(' ')).toContain('不是有效 JSON');
     }
   });
 });

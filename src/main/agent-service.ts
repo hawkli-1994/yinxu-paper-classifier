@@ -11,7 +11,7 @@ import {
   normalizeAgentBaseUrl
 } from '../shared/provider-config';
 import { normalizePaperResult } from '../shared/result-normalizer';
-import { parseAgentDraft } from '../shared/result-schema';
+import { parseAgentDraftJson } from '../shared/result-schema';
 import { saveAgentResult } from './project-service';
 import type { RetrievedMemoryContext } from './memory-service';
 
@@ -209,7 +209,7 @@ export const createAgentRun = async (
   if (config.signal?.aborted) throw new Error('用户已取消本次分类。');
 
   const resultPath = join(project.rootPath, 'result', 'agent-result.json');
-  const draft = parseAgentDraft(JSON.parse(await readFile(resultPath, 'utf8')));
+  const draft = parseAgentDraftJson(await readFile(resultPath, 'utf8'));
   if (config.memoryContext?.trace.conflicts.length) {
     draft.ruleConflicts = [...new Set([...draft.ruleConflicts, ...config.memoryContext.trace.conflicts])];
   }

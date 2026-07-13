@@ -21,3 +21,13 @@ export const parseAgentDraft = (value: unknown): AgentPaperDraft => {
   if (!validate(value)) throw new DraftValidationError((validate.errors ?? []).map(describeError));
   return structuredClone(value);
 };
+
+export const parseAgentDraftJson = (text: string): AgentPaperDraft => {
+  try {
+    return parseAgentDraft(JSON.parse(text));
+  } catch (error) {
+    if (error instanceof DraftValidationError) throw error;
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new DraftValidationError([`agent-result.json 不是有效 JSON：${detail}`]);
+  }
+};
