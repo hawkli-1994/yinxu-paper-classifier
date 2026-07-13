@@ -145,7 +145,11 @@ describe('OCR retry', () => {
       config: { baseUrl: 'https://example.com/v1', apiKey: 'key', model: 'ocr' }
     };
     const accepted = await processPagesWithOcrMode(input, async () => `殷墟祭祀卜辞研究${'甲'.repeat(60)}`);
-    const rejected = await processPagesWithOcrMode(input, async () => `<|LOC_1_2|>${'乱码'.repeat(50)}`);
+    let rejectedCalls = 0;
+    const rejected = await processPagesWithOcrMode(input, async () => {
+      rejectedCalls += 1;
+      return `<|LOC_1_2|>${'乱码'.repeat(50)}`;
+    });
 
     expect(accepted.cloudAppliedPages).toEqual([1]);
     expect(accepted.localFallbackPages).toEqual([]);
@@ -153,5 +157,27 @@ describe('OCR retry', () => {
     expect(rejected.cloudAppliedPages).toEqual([]);
     expect(rejected.localFallbackPages).toEqual([1]);
     expect(rejected.pages[0]?.text).toBe('本地残留文字');
+    expect(rejectedCalls).toBe(3);
+  });
+
+  it('retries a low-quality automatic OCR response before falling back', async () => {
+    const document = await PDFDocument.create();
+    document.addPage();
+    let calls = 0;
+    const result = await processPagesWithOcrMode({
+      mode: 'auto',
+      pdfBytes: await document.save(),
+      pages: [{ page: 1, text: '', source: 'embedded' }],
+      pagesNeedingOcr: [1],
+      config: { baseUrl: 'https://example.com/v1', apiKey: 'key', model: 'ocr' }
+    }, async () => {
+      calls += 1;
+      return calls === 1 ? '<|LOC_1_2|>乱码' : `殷墟甲骨卜辞研究${'甲'.repeat(60)}`;
+    });
+
+    expect(calls).toBe(2);
+    expect(result.cloudAppliedPages).toEqual([1]);
+    expect(result.localFallbackPages).toEqual([]);
+    expect(result.pages[0]?.source).toBe('ocr');
   });
 });

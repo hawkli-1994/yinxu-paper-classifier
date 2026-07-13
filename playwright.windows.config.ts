@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './playwright',
   testMatch: 'windows-smoke.spec.ts',
-  timeout: 12 * 60_000,
+  timeout: 15 * 60_000,
   workers: 1,
   fullyParallel: false,
   reporter: [['line']],

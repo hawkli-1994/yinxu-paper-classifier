@@ -16,7 +16,7 @@ jobs:
   smoke:
     name: Install and run real Windows workflow
     runs-on: windows-2025
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       KIMI_API_KEY: ${{ secrets.KIMIAPIKEY }}
       OCR_API_KEY: ${{ secrets.OCRAPIKEY }}
