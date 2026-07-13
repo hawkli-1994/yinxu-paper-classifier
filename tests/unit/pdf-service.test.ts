@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
-import { buildTextPreparationReport, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, writeExtractedText } from '../../src/main/pdf-service';
+import { buildTextPreparationReport, extractPdfTextWithMuPdf, extractSinglePagePdf, inspectPdf, renderPdfPageToPng, toPdfJsFactoryUrl, writeExtractedText } from '../../src/main/pdf-service';
 import { createFixturePdf } from '../fixtures/pdf';
 
 const roots: string[] = [];
@@ -13,6 +13,13 @@ afterEach(async () => {
 });
 
 describe('PDF inspection', () => {
+  it('normalizes Windows PDF.js resource directories as slash-terminated factory URLs', () => {
+    expect(toPdfJsFactoryUrl('C:\\Program Files\\殷墟论文分类助手\\resources\\app.asar\\node_modules\\pdfjs-dist\\cmaps\\')).toBe(
+      'C:/Program Files/殷墟论文分类助手/resources/app.asar/node_modules/pdfjs-dist/cmaps/'
+    );
+    expect(toPdfJsFactoryUrl('/opt/app/pdfjs-dist/wasm')).toBe('/opt/app/pdfjs-dist/wasm/');
+  });
+
   it('returns extracted text and flags short pages for OCR', async () => {
     const root = await mkdtemp(join(tmpdir(), 'yinxu-pdf-'));
     roots.push(root);

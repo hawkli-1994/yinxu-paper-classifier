@@ -1,6 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
 import { PDFDocument } from '@pdfme/pdf-lib';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -8,12 +8,13 @@ import mupdf from 'mupdf';
 import type { PageText, TextPreparationReport } from '../shared/contracts';
 
 const pdfJsRoot = dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
+export const toPdfJsFactoryUrl = (directory: string): string => `${directory.replace(/\\/g, '/').replace(/\/+$/, '')}/`;
 const pdfJsDocumentOptions = {
   useWorkerFetch: false,
-  cMapUrl: `${join(pdfJsRoot, 'cmaps')}${sep}`,
+  cMapUrl: toPdfJsFactoryUrl(join(pdfJsRoot, 'cmaps')),
   cMapPacked: true,
-  standardFontDataUrl: `${join(pdfJsRoot, 'standard_fonts')}${sep}`,
-  wasmUrl: `${join(pdfJsRoot, 'wasm')}${sep}`,
+  standardFontDataUrl: toPdfJsFactoryUrl(join(pdfJsRoot, 'standard_fonts')),
+  wasmUrl: toPdfJsFactoryUrl(join(pdfJsRoot, 'wasm')),
   useSystemFonts: true
 } as const;
 

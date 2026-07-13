@@ -19,6 +19,8 @@ description: Classify one imported Yinxu research paper into the bundled 4/16/72
 
 读取 `extracted/chunks/` 中的全部 `chunk-*.md`：先列出文件，再按文件名顺序逐个读取。不得只读取 `full-text.md` 的开头；分块缺失时才改读 `extracted/text.jsonl`，并用 offset 继续直到文件结束。读取 `extracted/report.json` 了解文本和 OCR 状态。
 
+列出分块时优先使用 Agent 的 `ls` 工具，读取内容使用 `read`，生成结果使用 `write`。如需 Bash，只使用应用随附的 `ls`、`find`、`grep`、`sed` 等命令，不得假定电脑另行安装了 `rg`、Python、PowerShell、Git 或其他系统工具。
+
 ## 严格执行顺序
 
 1. **事实提取**：先记录题名、作者、出处、文献类型、核心材料、时段、地点和研究问题；每个结论只使用论文中可核对的信息。

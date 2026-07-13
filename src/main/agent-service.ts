@@ -1,6 +1,6 @@
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { AuthStorage, createAgentSession, DefaultResourceLoader, ModelRegistry, SessionManager } from '@earendil-works/pi-coding-agent';
+import { AuthStorage, createAgentSession, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager } from '@earendil-works/pi-coding-agent';
 import type { PaperResult, ProjectRecord } from '../shared/contracts';
 import {
   CUSTOM_PROVIDER_ID,
@@ -25,6 +25,7 @@ export interface AgentModelConfig {
   memoryContext?: RetrievedMemoryContext;
   sessionDirectory: string;
   supplementContextPath: string;
+  shellPath?: string;
 }
 
 export interface AgentRunEvent {
@@ -59,6 +60,8 @@ export const buildClassificationPrompt = (project: ProjectRecord, knowledgePath:
 文本质量：extracted/report.json
 本次运行补充材料快照：${supplementContextPath ?? '无'}
 输出文件：result/agent-result.json
+
+文件操作使用当前 Agent 提供的 ls、read 和 write 工具；不得依赖电脑另行安装的 rg、Python、PowerShell、Git 或其他系统工具。确需 Bash 时，只使用应用内随附的命令。
 
 必须严格执行知识包内的 yinxu-paper-classifier Skill。选择一个主三级分类，最多 3 个互见分类，并为主分类提供带页码、可原文核对的证据。输出必须是 JSON，写入 result/agent-result.json。不得输出最终置信度、置信度颜色或复核状态。
 
@@ -106,12 +109,24 @@ export const createClassificationResourceLoader = (projectRoot: string, agentDir
     noSkills: true
   });
 
+export const CLASSIFICATION_AGENT_TOOLS = ['read', 'ls', 'bash', 'write'] as const;
+
+export const createClassificationSettingsManager = (shellPath?: string): SettingsManager =>
+  SettingsManager.inMemory(shellPath ? { shellPath } : {});
+
 export const createAgentRun = async (
   project: ProjectRecord,
   knowledgePath: string,
   config: AgentModelConfig,
   onEvent: (event: AgentRunEvent) => void
 ): Promise<PaperResult> => {
+  if (config.shellPath) {
+    try {
+      await access(config.shellPath);
+    } catch {
+      throw new Error('应用内 Git Bash 运行时不完整，请重新安装当前版本。');
+    }
+  }
   const runtimeProvider = getProviderRuntimeId(config.provider);
   const authStorage = AuthStorage.create(join(config.agentDirectory, 'auth.json'));
   if (config.runtimeApiKey) authStorage.setRuntimeApiKey(runtimeProvider, config.runtimeApiKey);
@@ -146,6 +161,8 @@ export const createAgentRun = async (
     model,
     thinkingLevel: config.thinkingLevel,
     resourceLoader,
+    settingsManager: createClassificationSettingsManager(config.shellPath),
+    tools: [...CLASSIFICATION_AGENT_TOOLS],
     sessionManager: SessionManager.create(project.rootPath, config.sessionDirectory)
   });
 

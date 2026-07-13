@@ -28,6 +28,7 @@ import {
   updateProjectMetadata
 } from './project-service';
 import { loadSettings, saveSettings } from './settings-service';
+import { getBundledGitBashPath } from './resource-service';
 import {
   approveCandidateRule,
   clearFeedbackMemory,
@@ -249,7 +250,8 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
         agentDirectory: join(appRoot, 'agent'),
         memoryContext,
         sessionDirectory: created.run.sessionPath,
-        supplementContextPath: created.run.supplementContextPath!
+        supplementContextPath: created.run.supplementContextPath!,
+        shellPath: process.platform === 'win32' ? getBundledGitBashPath() : undefined
       }, send);
       project = await completeClassificationRun(project, created.run, created.runDirectory, result);
       return loadProjectWorkspace(appRoot, project.id);

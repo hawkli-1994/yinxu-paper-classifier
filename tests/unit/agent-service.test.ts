@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ProjectRecord } from '../../src/shared/contracts';
 import { AuthStorage, ModelRegistry } from '@earendil-works/pi-coding-agent';
-import { buildClassificationPrompt, buildCustomEndpointProvider, buildOpenAICompatibleProvider, createClassificationResourceLoader } from '../../src/main/agent-service';
+import { buildClassificationPrompt, buildCustomEndpointProvider, buildOpenAICompatibleProvider, CLASSIFICATION_AGENT_TOOLS, createClassificationResourceLoader, createClassificationSettingsManager } from '../../src/main/agent-service';
 
 const project: ProjectRecord = {
   id: 'project-1',
@@ -23,6 +23,7 @@ describe('Agent prompt', () => {
     expect(prompt).toContain('result/agent-result.json');
     expect(prompt).toContain('一个主三级分类');
     expect(prompt).toContain('extracted/chunks');
+    expect(prompt).toContain('不得依赖电脑另行安装');
     expect(prompt).toContain('不得输出最终置信度');
   });
 
@@ -74,6 +75,14 @@ describe('custom compatible endpoint', () => {
 });
 
 describe('classification resource isolation', () => {
+  it('uses the packaged Bash path together with cross-platform file tools', () => {
+    const shellPath = 'C:\\Program Files\\殷墟论文分类助手\\resources\\git-bash\\usr\\bin\\bash.exe';
+    const settings = createClassificationSettingsManager(shellPath);
+
+    expect(settings.getShellPath()).toBe(shellPath);
+    expect(CLASSIFICATION_AGENT_TOOLS).toEqual(['read', 'ls', 'bash', 'write']);
+  });
+
   it('loads only the explicitly bundled Yinxu Skill', async () => {
     const knowledgePath = `${process.cwd()}/resources/yinxu-classifier`;
     const loader = createClassificationResourceLoader('/tmp/yinxu-project', '/tmp/yinxu-agent', knowledgePath);

@@ -6,3 +6,4 @@ playwright-report/
 .vite/
 .DS_Store
 *.log
+resources/git-bash/

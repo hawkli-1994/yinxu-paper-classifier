@@ -1,6 +1,6 @@
 {
   "name": "yinxu-paper-classifier",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "殷墟论文分类助手 Windows 单机版",
   "main": "out/main/index.js",
   "type": "module",
@@ -14,7 +14,9 @@
     "test:e2e": "npm run build && playwright test",
     "evaluate:quality": "tsx tests/quality/evaluate.ts",
     "prepare:win-native": "node scripts/prepare-win-native.mjs",
-    "package:win": "npm run prepare:win-native && npm run build && electron-builder --win nsis portable --x64"
+    "prepare:git-bash": "node scripts/prepare-git-bash.mjs",
+    "prepare:win-runtime": "npm run prepare:win-native && npm run prepare:git-bash",
+    "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64"
   },
   "dependencies": {
     "@napi-rs/canvas": "1.0.2",
@@ -65,6 +67,10 @@
       {
         "from": "resources/yinxu-classifier",
         "to": "yinxu-classifier"
+      },
+      {
+        "from": "resources/git-bash",
+        "to": "git-bash"
       }
     ],
     "win": {
