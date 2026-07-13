@@ -109,7 +109,7 @@ export const inspectPdf = async (sourcePath: string): Promise<PdfInspection> => 
 export const extractSinglePagePdf = async (content: Uint8Array, pageNumber: number): Promise<Uint8Array> => {
   const source = await PDFDocument.load(content);
   if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > source.getPageCount()) {
-    throw new Error(`PDF page is out of range: ${pageNumber}`);
+    throw new Error(`PDF 页码超出范围：${pageNumber}。`);
   }
   const target = await PDFDocument.create();
   const [page] = await target.copyPages(source, [pageNumber - 1]);
@@ -123,7 +123,7 @@ export const renderPdfPageToPng = async (content: Uint8Array, pageNumber = 1, sc
   const document = await loadingTask.promise;
   try {
     if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > document.numPages) {
-      throw new Error(`PDF page is out of range: ${pageNumber}`);
+      throw new Error(`PDF 页码超出范围：${pageNumber}。`);
     }
     const page = await document.getPage(pageNumber);
     const viewport = page.getViewport({ scale });
@@ -165,7 +165,7 @@ export const buildTextPreparationReport = (pages: readonly PageText[], ocrApplie
 };
 
 export const buildTextChunks = (pages: readonly PageText[], maxChars = 20_000): string[] => {
-  if (maxChars < 80) throw new Error('Text chunk limit must be at least 80 characters.');
+  if (maxChars < 80) throw new Error('单个文本分段的字符上限不能少于 80。');
   const sections: string[] = [];
   for (const page of pages) {
     const header = `<!-- page:${page.page} -->\n`;

@@ -335,7 +335,7 @@ export const recordReviewFeedback = async (
     throw new Error('作者姓名、单位和身份反馈不能生成跨项目分类规则。');
   }
   if (input.memoryAction === 'candidate_rule' && !reusableLesson) {
-    throw new Error('生成全局候选规则时必须填写可复用经验。');
+    throw new Error('提交跨项目候选规则前，请填写跨项目处理原则。');
   }
   const event: FeedbackEvent = {
     id: randomUUID(),

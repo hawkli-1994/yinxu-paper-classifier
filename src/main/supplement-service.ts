@@ -93,7 +93,7 @@ export const addSupplementalNote = async (
 ): Promise<SupplementalMaterialRecord[]> => {
   const title = input.title.trim().slice(0, 160);
   const content = input.content.trim().slice(0, 50_000);
-  if (!title || !content) throw new Error('手工补充说明必须填写标题和内容。');
+  if (!title || !content) throw new Error('手动补充说明必须填写标题和内容。');
   const current = await listSupplementalMaterials(project);
   const notesDirectory = join(supplementsDirectory(project), 'notes');
   const extractedDirectory = join(supplementsDirectory(project), 'extracted');
@@ -108,7 +108,7 @@ export const addSupplementalNote = async (
     kind: input.kind,
     sourceType: 'note',
     title,
-    sourceLabel: input.sourceLabel?.trim().slice(0, 200) || '用户手工补充',
+    sourceLabel: input.sourceLabel?.trim().slice(0, 200) || '用户手动补充',
     storedPath,
     extractedTextPath,
     sha256: createHash('sha256').update(text).digest('hex'),

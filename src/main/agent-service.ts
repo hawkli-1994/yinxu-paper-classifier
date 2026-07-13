@@ -118,7 +118,7 @@ export const createAgentRun = async (
   const modelRegistry = ModelRegistry.create(authStorage, join(config.agentDirectory, 'models.json'));
   if (config.provider === CUSTOM_PROVIDER_ID) {
     const baseUrl = normalizeAgentBaseUrl(config.baseUrl);
-    if (!baseUrl) throw new Error('自定义兼容端点必须填写 Base URL。');
+    if (!baseUrl) throw new Error('自定义兼容服务必须填写服务地址（Base URL）。');
     modelRegistry.registerProvider(runtimeProvider, buildCustomEndpointProvider(config.modelId, baseUrl));
   } else {
     const providerPreset = getProviderPreset(config.provider);
@@ -134,7 +134,7 @@ export const createAgentRun = async (
     }
   }
   const model = modelRegistry.find(runtimeProvider, config.modelId);
-  if (!model) throw new Error(`Pi model is unavailable: ${config.provider}/${config.modelId}`);
+  if (!model) throw new Error(`无法使用所选模型：${config.provider}/${config.modelId}。请检查模型服务和模型 ID。`);
 
   const resourceLoader = createClassificationResourceLoader(project.rootPath, config.agentDirectory, knowledgePath);
   await resourceLoader.reload();

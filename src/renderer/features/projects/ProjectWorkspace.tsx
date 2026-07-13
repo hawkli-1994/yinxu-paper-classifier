@@ -13,13 +13,13 @@ export const ProjectWorkspace = (): React.JSX.Element => {
   const setWorkspaceTab = useAppStore((state) => state.setWorkspaceTab);
   const project = workspace.project;
   const title = workspace.result?.fields.题名 || project.sourceFileName.replace(/\.pdf$/i, '');
-  const author = workspace.result?.fields.作者 || '尚未提取作者';
+  const author = workspace.result?.fields.作者 || '作者信息待提取';
 
   const items = [
-    { key: 'materials', label: '资料', children: <MaterialsPage /> },
+    { key: 'materials', label: '论文资料', children: <MaterialsPage /> },
     { key: 'classification', label: 'AI 分类', children: <ProcessPage /> },
-    { key: 'review', label: '复核与导出', children: <ReviewPage /> },
-    { key: 'history', label: '历史版本', children: <HistoryPage /> }
+    { key: 'review', label: '人工复核与导出', children: <ReviewPage /> },
+    { key: 'history', label: '分类记录', children: <HistoryPage /> }
   ];
 
   return (
@@ -32,7 +32,7 @@ export const ProjectWorkspace = (): React.JSX.Element => {
             <Typography.Text type="secondary">{author}</Typography.Text>
             <Tag color={projectStatusColor[project.status]}>{projectStatusLabel[project.status]}</Tag>
             <Typography.Text type="secondary">补充材料 {workspace.supplements.filter((item) => !item.removedAt).length} 份</Typography.Text>
-            <Typography.Text type="secondary">分类运行 {workspace.runs.length} 次</Typography.Text>
+            <Typography.Text type="secondary">分类任务 {workspace.runs.length} 次</Typography.Text>
             <Typography.Text type="secondary">更新于 {new Date(project.updatedAt).toLocaleString()}</Typography.Text>
           </Space>
         </div>

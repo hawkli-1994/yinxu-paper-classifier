@@ -75,7 +75,7 @@ export const normalizePaperResult = (
     normalizationIssues.push({ code: 'TOO_MANY_CROSS_REFERENCES', message: '互见分类最多只能保留 3 个。' });
   }
   if (draft.crossReferenceCategoryCodes.some((code) => !isValidLeafCategory(code) || code === draft.primaryCategoryCode)) {
-    normalizationIssues.push({ code: 'INVALID_CROSS_REFERENCE', message: '已移除非法或与主类重复的互见分类。' });
+    normalizationIssues.push({ code: 'INVALID_CROSS_REFERENCE', message: '已移除无效或与主分类重复的互见分类。' });
   }
   const crossReferenceCategoryCodes = [...new Set(draft.crossReferenceCategoryCodes)]
     .filter((code) => code !== draft.primaryCategoryCode && isValidLeafCategory(code))
@@ -83,7 +83,7 @@ export const normalizePaperResult = (
 
   const candidateCodes = draft.candidates.map((candidate) => candidate.code);
   if (draft.candidates.some((candidate) => !isValidLeafCategory(candidate.code) || candidate.score < 0 || candidate.score > 1)) {
-    normalizationIssues.push({ code: 'INVALID_CANDIDATE', message: '已移除非法候选分类。' });
+    normalizationIssues.push({ code: 'INVALID_CANDIDATE', message: '已移除无效的候选分类。' });
   }
   if (new Set(candidateCodes).size !== candidateCodes.length) {
     normalizationIssues.push({ code: 'DUPLICATE_CANDIDATE', message: '已合并重复候选分类。' });
@@ -98,8 +98,8 @@ export const normalizePaperResult = (
     })
     .sort((left, right) => right.score - left.score);
   if (!candidates.some((candidate) => candidate.code === draft.primaryCategoryCode)) {
-    normalizationIssues.push({ code: 'PRIMARY_NOT_CANDIDATE', message: '主分类原先未出现在候选列表，程序已补入。' });
-    candidates.unshift({ code: draft.primaryCategoryCode, score: context.reviewed ? 1 : 0.5, reason: context.reviewed ? '人工复核选择。' : '程序根据主分类代码补入。' });
+    normalizationIssues.push({ code: 'PRIMARY_NOT_CANDIDATE', message: '主分类未包含在原候选列表中，系统已自动补充。' });
+    candidates.unshift({ code: draft.primaryCategoryCode, score: context.reviewed ? 1 : 0.5, reason: context.reviewed ? '由人工复核确定。' : '系统根据主分类代码自动补充。' });
   }
 
   const provisional: PaperResult = {

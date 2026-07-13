@@ -45,7 +45,7 @@ export const exportWorkbook = async (project: ProjectRecord, result: PaperResult
   notes.addRows([
     ['项目编号', project.id],
     ['知识包版本', project.knowledgeVersion],
-    ['Agent Provider', project.agentProvider ?? '未记录'],
+    ['AI 模型服务', project.agentProvider ?? '未记录'],
     ['Agent 模型', project.agentModel ?? '未记录'],
     ['思考强度', project.thinkingLevel ?? '未记录'],
     ['OCR 模型', project.ocrModel ?? '未记录'],

@@ -33,14 +33,14 @@ export const ReviewPage = (): React.JSX.Element => {
     [result]
   );
 
-  if (!result || !project) return <Empty description="完成分类后，结果会在这里等待复核。" />;
+  if (!result || !project) return <Empty description="完成 AI 分类后，可在此复核并导出结果。" />;
 
   const update = (next: PaperResult): void => setResult({ ...next, reviewStatus: 'needs_review' });
   const selectedEvidence = result.evidence[Math.min(selectedEvidenceIndex, result.evidence.length - 1)];
 
   const save = async (): Promise<void> => {
     if (feedback.memoryAction === 'candidate_rule' && !feedback.reusableLesson.trim()) {
-      message.warning('生成全局候选规则前，请先填写可复用经验。');
+      message.warning('请先填写跨项目处理原则，再提交候选规则。');
       return;
     }
     setSaving(true);
@@ -52,12 +52,12 @@ export const ReviewPage = (): React.JSX.Element => {
       setFeedback(emptyFeedback());
       message.success(
         isAuthorMetadataOnlyFeedback(feedback)
-          ? feedback.memoryAction === 'project_only' ? '作者信息反馈仅保存到当前论文。' : '作者信息反馈已加入全局记录，但不会参与后续分类检索。'
+          ? feedback.memoryAction === 'project_only' ? '作者信息的复核记录已保存到当前项目。' : '作者信息的复核记录已保存，不会影响后续论文的分类。'
           : feedback.memoryAction === 'candidate_rule'
-            ? '本论文复核已保存；全局候选规则等待确认。'
+            ? '人工复核已保存，跨项目候选规则等待确认。'
             : feedback.memoryAction === 'global_memory'
-              ? '本论文复核与跨项目反馈记忆已保存。'
-              : '复核说明仅保存到当前论文。'
+              ? '人工复核和跨项目参考经验已保存。'
+              : '人工复核仅保存到当前项目。'
       );
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存复核失败。');
@@ -77,12 +77,12 @@ export const ReviewPage = (): React.JSX.Element => {
 
   return (
     <section className="page-section">
-      <Typography.Title level={2}>复核与导出</Typography.Title>
+      <Typography.Title level={2}>人工复核与导出</Typography.Title>
       <Alert
         className="section-alert"
         type={result.confidenceBand === 'red' ? 'error' : result.confidenceBand === 'yellow' ? 'warning' : 'success'}
         showIcon
-        title={`程序计算置信度：${result.confidence} 分。修改后保存会重新校验证据并计算。`}
+        title={`系统评估置信度：${result.confidence} 分。保存修改时，系统会重新校验证据并计算分数。`}
       />
       {result.validationIssues.length > 0 ? (
         <Alert
@@ -110,7 +110,7 @@ export const ReviewPage = (): React.JSX.Element => {
                 />
               </div>
               <div>
-                <Typography.Text strong>互见分类（最多三个）</Typography.Text>
+                <Typography.Text strong>互见分类（最多 3 项）</Typography.Text>
                 <Select
                   aria-label="互见分类"
                   mode="multiple"
@@ -125,7 +125,7 @@ export const ReviewPage = (): React.JSX.Element => {
               </div>
             </div>
             <Descriptions column={1} size="small" className="review-path">
-              <Descriptions.Item label="当前路径">
+              <Descriptions.Item label="当前分类路径">
                 <Tag color={confidenceColor(result.confidenceBand)}>{getCategoryPath(result.primaryCategoryCode).map((item) => `${item.code} ${item.label}`).join(' / ')}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="状态">{result.reviewStatus === 'confirmed' ? '已确认' : '待复核'}</Descriptions.Item>
@@ -137,7 +137,7 @@ export const ReviewPage = (): React.JSX.Element => {
               type="info"
               showIcon
               className="author-source-alert"
-              message="作者姓名只按论文原文顺序记录；单位只照录论文明确署名，不按姓名、静态名单或当前公开任职推断院内外身份。"
+              message="作者姓名按论文原文顺序记录；作者单位仅记录论文中明确标注的信息。系统不根据姓名、固定名单或当前职务推断作者所属机构。"
             />
             <Table
               size="small"
@@ -157,12 +157,12 @@ export const ReviewPage = (): React.JSX.Element => {
                   )
                 },
                 {
-                  title: '结果与依据',
+                  title: '结果与判定依据',
                   dataIndex: 'value',
                   render: (value: string, row: { name: PaperFieldName; assessment: PaperResult['fieldAssessments'][PaperFieldName] }) => (
                     <Space orientation="vertical" size={4} className="field-editor">
                       {programManagedFields.has(row.name) ? (
-                        <Space wrap><Typography.Text code copyable>{value || '由系统生成'}</Typography.Text><Tag>系统生成 · 只读</Tag></Space>
+                        <Space wrap><Typography.Text code copyable>{value || '系统尚未生成'}</Typography.Text><Tag>系统维护 · 只读</Tag></Space>
                       ) : (
                         <Input value={value} onChange={(event) => update(updateReviewField(result, row.name, event.target.value))} />
                       )}
@@ -201,7 +201,7 @@ export const ReviewPage = (): React.JSX.Element => {
                 >
                   <Space orientation="vertical" className="evidence-editor">
                     <Space>
-                      <Typography.Text>PDF 页</Typography.Text>
+                    <Typography.Text>PDF 页码</Typography.Text>
                       <InputNumber
                         aria-label={`证据 ${index + 1} 页码`}
                         min={1}
@@ -214,20 +214,20 @@ export const ReviewPage = (): React.JSX.Element => {
                       aria-label={`证据 ${index + 1} 原文引文`}
                       value={evidence.quote}
                       autoSize={{ minRows: 2, maxRows: 5 }}
-                      placeholder="必须与指定页提取文本逐字一致"
+                      placeholder="请填写与指定页面文本完全一致的原文引文"
                       onChange={(event) => update(updateReviewEvidence(result, index, { quote: event.target.value }))}
                     />
                     <Input.TextArea
                       aria-label={`证据 ${index + 1} 判断理由`}
                       value={evidence.reason}
                       autoSize={{ minRows: 2, maxRows: 4 }}
-                      placeholder="说明该引文为什么支持主分类"
+                      placeholder="说明该引文如何支持当前主分类"
                       onChange={(event) => update(updateReviewEvidence(result, index, { reason: event.target.value }))}
                     />
                   </Space>
                 </Card>
               ))}
-              <Button icon={<PlusOutlined />} onClick={() => update(addReviewEvidence(result))}>增加证据</Button>
+              <Button icon={<PlusOutlined />} onClick={() => update(addReviewEvidence(result))}>添加证据</Button>
             </Space>
           </Card>
 
@@ -235,7 +235,7 @@ export const ReviewPage = (): React.JSX.Element => {
             {selectedEvidence ? <PdfEvidencePreview projectId={project.id} page={selectedEvidence.page} /> : <Empty description="请选择证据" />}
           </Card>
 
-          <Card title="候选分类比较" className="academic-card">
+          <Card title="候选分类对比" className="academic-card">
             {result.candidates.map((candidate) => (
               <Typography.Paragraph key={candidate.code}>
                 <Tag color={candidate.code === result.primaryCategoryCode ? 'processing' : undefined}>{candidate.code}</Tag>
@@ -248,7 +248,7 @@ export const ReviewPage = (): React.JSX.Element => {
       </Row>
       <FeedbackPanel value={feedback} memoryTrace={result.memoryTrace} onChange={setFeedback} />
       <Space wrap>
-        <Button type="primary" loading={saving} onClick={() => void save()}>校验并保存人工复核</Button>
+        <Button type="primary" loading={saving} onClick={() => void save()}>校验并保存复核结果</Button>
         <Button disabled={result.reviewStatus !== 'confirmed'} onClick={() => void exportResult()}>导出 Excel</Button>
         {result.reviewStatus !== 'confirmed' ? <Typography.Text type="secondary">通过校验并保存后才能导出。</Typography.Text> : null}
       </Space>

@@ -18,7 +18,7 @@ const kindOptions: Array<{ value: SupplementKind; label: string }> = [
   { value: 'author_metadata', label: '作者信息' },
   { value: 'bibliography', label: '书目信息' },
   { value: 'expert_note', label: '专家意见' },
-  { value: 'appendix', label: '论文附录/补扫' },
+  { value: 'appendix', label: '论文附录或补充扫描件' },
   { value: 'other', label: '其他材料' }
 ];
 
@@ -75,7 +75,7 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
       setWorkspace(workspace);
       await refreshProjects();
       setWorkspaceTab('materials');
-      message.success('论文项目已创建，主论文和补充材料已保存到本机。');
+      message.success('论文项目已创建，所有资料均已保存在本地。');
       reset();
       onClose();
     } catch (error) {
@@ -88,9 +88,9 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
   return (
     <Modal title="新建论文项目" open={open} onCancel={close} width={760} footer={[
       <Button key="cancel" onClick={close}>取消</Button>,
-      <Button key="create" type="primary" loading={creating} disabled={!primary} onClick={() => void create()}>创建项目并准备材料</Button>
+      <Button key="create" type="primary" loading={creating} disabled={!primary} onClick={() => void create()}>创建项目</Button>
     ]}>
-      <Alert type="info" showIcon message="一个项目只处理一篇主论文；补充材料可以有多份，但不会被当作新的待分类论文。" />
+      <Alert type="info" showIcon message="每个项目只处理一篇主论文。可同时添加多份补充材料，这些材料仅用于辅助当前论文的分类。" />
       <section className="new-project-section">
         <Space align="center">
           <FilePdfOutlined className="new-project-file-icon" />
@@ -105,23 +105,23 @@ export const NewProjectModal = ({ open, onClose }: NewProjectModalProps): React.
       <Space className="section-heading-row">
         <div>
           <Typography.Text strong>补充材料（可选，可多份）</Typography.Text>
-          <Typography.Paragraph type="secondary" className="compact-paragraph">支持 PDF、TXT、Markdown；默认只作用于当前论文项目。</Typography.Paragraph>
+          <Typography.Paragraph type="secondary" className="compact-paragraph">支持 PDF、TXT 和 Markdown 文件，仅用于当前论文项目。</Typography.Paragraph>
         </div>
         <Button icon={<FileAddOutlined />} onClick={() => void chooseSupplements()}>选择补充材料</Button>
       </Space>
       <List
         className="supplement-selection-list"
-        locale={{ emptyText: '未选择补充材料，可直接创建项目' }}
+        locale={{ emptyText: '未选择补充材料，仍可创建项目' }}
         dataSource={supplements}
         renderItem={(item) => (
           <List.Item actions={[<Button key="remove" type="text" danger icon={<DeleteOutlined />} onClick={() => setSupplements((current) => current.filter((candidate) => candidate.path !== item.path))} />]}>
-            <List.Item.Meta title={item.name} description={<Space wrap><Tag>{item.extension.replace('.', '').toUpperCase()}</Tag><Select size="small" value={item.kind} options={kindOptions} onChange={(kind) => setSupplements((current) => current.map((candidate) => candidate.path === item.path ? { ...candidate, kind } : candidate))} /><Input size="small" value={item.sourceLabel} placeholder="来源" onChange={(event) => setSupplements((current) => current.map((candidate) => candidate.path === item.path ? { ...candidate, sourceLabel: event.target.value } : candidate))} /></Space>} />
+            <List.Item.Meta title={item.name} description={<Space wrap><Tag>{item.extension.replace('.', '').toUpperCase()}</Tag><Select size="small" aria-label="补充材料类型" value={item.kind} options={kindOptions} onChange={(kind) => setSupplements((current) => current.map((candidate) => candidate.path === item.path ? { ...candidate, kind } : candidate))} /><Input size="small" value={item.sourceLabel} placeholder="材料来源或提供者" onChange={(event) => setSupplements((current) => current.map((candidate) => candidate.path === item.path ? { ...candidate, sourceLabel: event.target.value } : candidate))} /></Space>} />
           </List.Item>
         )}
       />
-      <Button type="link" icon={<PlusOutlined />} onClick={() => setShowNote((value) => !value)}>{showNote ? '取消手工说明' : '同时添加手工补充说明'}</Button>
+      <Button type="link" icon={<PlusOutlined />} onClick={() => setShowNote((value) => !value)}>{showNote ? '取消手动补充' : '添加手动补充说明'}</Button>
       {showNote ? (
-        <Form form={noteForm} layout="vertical" initialValues={{ kind: 'expert_note', sourceLabel: '用户手工补充' }}>
+        <Form form={noteForm} layout="vertical" initialValues={{ kind: 'expert_note', sourceLabel: '用户手动补充' }}>
           <div className="form-grid">
             <Form.Item name="title" label="说明标题" rules={[{ required: true }]}><Input /></Form.Item>
             <Form.Item name="kind" label="材料类型" rules={[{ required: true }]}><Select options={kindOptions} /></Form.Item>

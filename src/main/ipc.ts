@@ -63,7 +63,7 @@ const toFileSelection = async (path: string): Promise<LocalFileSelection> => ({
 });
 
 const assertProjectNotClassifying = (projectId: string): void => {
-  if (getActiveClassification()?.projectId === projectId) throw new Error('当前项目正在分类，请等待本次运行结束后再修改材料、复核或切换版本。');
+  if (getActiveClassification()?.projectId === projectId) throw new Error('当前项目正在分类。请等待任务结束后，再修改资料、复核结果或切换版本。');
 };
 
 const readPreparedPages = async (project: ProjectRecord): Promise<Array<{ page: number; text: string; source?: 'embedded' | 'ocr' | 'mixed' }>> =>
@@ -120,7 +120,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
 
   ipcMain.handle('system:open-provider-api-key-page', async (_event, provider: string): Promise<void> => {
     const targetUrl = getProviderPreset(provider)?.apiKeyUrl;
-    if (!targetUrl) throw new Error('该 Provider 没有可打开的 API Key 页面。');
+    if (!targetUrl) throw new Error('该模型服务未配置 API Key 获取页面。');
     await shell.openExternal(targetUrl);
   });
 
@@ -215,7 +215,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const settings = await loadSettings(appRoot);
     const vault = createElectronCredentialVault(appRoot);
     const apiKey = settings.agent.provider ? await vault.get(getAgentCredentialKey(settings.agent)) : undefined;
-    if (!settings.agent.provider || !settings.agent.modelId || !apiKey) throw new Error('请先在设置中完成 Agent Provider、模型和 API Key 配置。');
+    if (!settings.agent.provider || !settings.agent.modelId || !apiKey) throw new Error('请先在“设置”中完成模型服务、模型 ID 和 API Key 配置。');
     const releaseClassificationLock = acquireClassificationLock(projectId, 'pending');
     const webContents: WebContents = event.sender;
     let created: Awaited<ReturnType<typeof createClassificationRun>> | undefined;
@@ -271,7 +271,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const before = await getResult(project);
     const feedbackInput = feedback ?? { errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '' };
     if (feedbackInput.memoryAction === 'candidate_rule' && !feedbackInput.reusableLesson.trim()) {
-      throw new Error('生成全局候选规则时必须填写可复用经验。');
+      throw new Error('提交跨项目候选规则前，请填写跨项目处理原则。');
     }
     if (feedbackInput.memoryAction === 'candidate_rule' && isAuthorMetadataOnlyFeedback(feedbackInput)) {
       throw new Error('作者姓名、单位和身份反馈不能生成跨项目分类规则。');

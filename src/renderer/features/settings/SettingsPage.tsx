@@ -46,18 +46,27 @@ const ocrSuggestedModels = [
   { id: 'PaddlePaddle/PaddleOCR-VL-1.5', label: 'PaddleOCR-VL-1.5（自动转 PNG）' }
 ];
 
+const thinkingLevelOptions: Array<{ value: SettingsInput['agent']['thinkingLevel']; label: string }> = [
+  { value: 'off', label: '关闭' },
+  { value: 'minimal', label: '最低' },
+  { value: 'low', label: '较低' },
+  { value: 'medium', label: '标准' },
+  { value: 'high', label: '较高' },
+  { value: 'xhigh', label: '最高' }
+];
+
 const ocrModeDescriptions: Record<SettingsInput['ocr']['mode'], { type: 'info' | 'success' | 'warning'; message: string }> = {
   auto: {
     type: 'info',
-    message: '自动：先判断哪些页面需要 OCR；需要识别时优先调用云端，云端失败或质量不合格则回退本地结果。没有 Key 时仍可使用本地能力。'
+    message: '自动模式：系统先检测需要识别的页面，并优先使用云端 OCR。云端服务不可用或识别质量不足时，改用本地解析结果。未配置 API Key 时仅使用本地解析。'
   },
   local: {
     type: 'success',
-    message: '本地：只使用 PDF.js + MuPDF 在本机解析，论文不会发送到 OCR 服务；纯图片扫描页可能需要人工复核。'
+    message: '本地模式：仅在当前设备上解析 PDF，论文内容不会发送到 OCR 服务。纯图像扫描页可能无法完整识别，需要人工复核。'
   },
   cloud: {
     type: 'warning',
-    message: '云端：论文每一页都必须经云端 OCR，必须配置 Key；云端调用失败时会停止导入，不会静默回退本地。'
+    message: '云端模式：论文的每一页都会发送到云端 OCR 服务，必须配置 API Key。云端识别失败时将停止导入，不会改用本地解析结果。'
   }
 };
 
@@ -110,7 +119,7 @@ export const SettingsPage = (): React.JSX.Element => {
       });
       setSettings(updated);
       form.setFieldsValue({ agentApiKey: '', ocrApiKey: '' });
-      message.success('设置已保存到本机。');
+      message.success('设置已保存在本地。');
     } catch (error) {
       message.error(error instanceof Error ? error.message : '保存设置失败。');
     } finally {
@@ -131,7 +140,7 @@ export const SettingsPage = (): React.JSX.Element => {
     try {
       await window.yinxu.openProviderApiKeyPage(providerPreset.id);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '无法打开 API Key 页面。');
+      message.error(error instanceof Error ? error.message : '打开 API Key 获取页面失败。');
     }
   };
 
@@ -139,21 +148,21 @@ export const SettingsPage = (): React.JSX.Element => {
     try {
       await window.yinxu.openOcrSignupPage();
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '无法打开 SiliconFlow 注册页面。');
+      message.error(error instanceof Error ? error.message : '打开硅基流动注册页面失败。');
     }
   };
 
   return (
     <section className="page-section">
-      <Typography.Title level={2}>模型与 OCR 设置</Typography.Title>
-      <Typography.Paragraph type="secondary">从按量 API、聚合服务或 Coding Plan 订阅中选择。Coding Plan 会固定使用对应厂商的专用端点，并与按量 API 分开保存凭据；只有“自定义兼容端点”需要填写 Base URL。</Typography.Paragraph>
-      <Alert className="section-alert" type="info" showIcon message="Windows 中凭据保存在当前用户的系统安全存储；macOS 开发预览若系统安全存储不可用，凭据只保留到本次应用关闭。凭据不会写入论文项目或 Excel。" />
+      <Typography.Title level={2}>AI 模型与 OCR 设置</Typography.Title>
+      <Typography.Paragraph type="secondary">可选择按量计费的 API、聚合服务或 Coding Plan 订阅。Coding Plan 使用服务商的专用接口，其凭据与按量计费 API 分开保存。只有选择“自定义兼容服务”时需要填写服务地址。</Typography.Paragraph>
+      <Alert className="section-alert" type="info" showIcon message="在 Windows 中，API 凭据保存在当前用户的系统安全存储中。在 macOS 开发预览环境中，如果系统安全存储不可用，凭据仅在当前运行期间保留。凭据不会写入论文项目或导出的 Excel 文件。" />
       <Form form={form} layout="vertical" onFinish={save} initialValues={{ thinkingLevel: 'medium', ocrMode: 'auto', ocrBaseUrl: 'https://api.siliconflow.cn/v1', ocrModel: 'PaddlePaddle/PaddleOCR-VL-1.5' }}>
-        <Card title="Pi Agent 模型" className="academic-card">
+        <Card title="AI 分类模型" className="academic-card">
           <div className="form-grid">
-            <Form.Item label="模型厂商" name="provider" rules={[{ required: true, message: '请选择模型厂商或自定义兼容端点。' }]}>
+            <Form.Item label="模型服务" name="provider" rules={[{ required: true, message: '请选择模型服务或自定义兼容服务。' }]}>
               <Select
-                placeholder="选择厂商"
+                placeholder="选择模型服务"
                 options={providerSelectOptions}
                 showSearch
                 optionFilterProp="label"
@@ -181,20 +190,20 @@ export const SettingsPage = (): React.JSX.Element => {
                       获取 {providerPreset.label} API Key
                     </Button>
                   ) : (
-                    <Typography.Text type="secondary" className="provider-summary-note">请在所用兼容服务的控制台获取 API Key。</Typography.Text>
+                    <Typography.Text type="secondary" className="provider-summary-note">请在所选服务的管理后台获取 API Key。</Typography.Text>
                   )}
                 </div>
               </Card>
             )}
             {isCustomProvider(selectedProvider ?? '') && (
               <Form.Item
-                label="Base URL"
+                label="服务地址（Base URL）"
                 name="baseUrl"
                 rules={[
                   { required: true, message: '请填写兼容服务的 Base URL。' },
                   { type: 'url', message: '请输入完整 URL，例如 https://gateway.example.com/v1。' }
                 ]}
-                extra="应指向 OpenAI Chat Completions 兼容服务的根地址；系统会自动去除结尾的 /。"
+                extra="请填写与 OpenAI Chat Completions 兼容的服务根地址。系统会自动去除地址末尾的斜杠。"
               >
                 <Input placeholder="https://gateway.example.com/v1" autoComplete="url" />
               </Form.Item>
@@ -222,16 +231,16 @@ export const SettingsPage = (): React.JSX.Element => {
                 </div>
               ) : null}
             </div>
-            <Form.Item label="思考强度" name="thinkingLevel">
-              <Select options={['off', 'minimal', 'low', 'medium', 'high', 'xhigh'].map((value) => ({ value, label: value }))} />
+            <Form.Item label="分析强度" name="thinkingLevel" extra="较高的分析强度可能提高复杂论文的分类质量，同时会增加处理时间和模型用量。">
+              <Select options={thinkingLevelOptions} />
             </Form.Item>
-            <Form.Item label={hasAgentKeyForSelection ? '新的 API Key（当前配置已保存，可留空）' : 'API Key'} name="agentApiKey" rules={hasAgentKeyForSelection ? [] : [{ required: true, message: '请输入当前厂商或端点的 API Key。' }]}>
-              <Input.Password placeholder="按厂商或自定义 Base URL 分开保存" autoComplete="new-password" />
+            <Form.Item label={hasAgentKeyForSelection ? '更换 API Key（已保存，如无需更换可留空）' : 'API Key'} name="agentApiKey" rules={hasAgentKeyForSelection ? [] : [{ required: true, message: '请输入当前模型服务的 API Key。' }]}>
+              <Input.Password placeholder="不同模型服务的凭据分别保存" autoComplete="new-password" />
             </Form.Item>
           </div>
         </Card>
         <Divider />
-        <Card title="扫描件 OCR" className="academic-card">
+        <Card title="PDF 文字识别（OCR）" className="academic-card">
           <Form.Item label="OCR 执行模式" name="ocrMode" rules={[{ required: true }]}>
             <Radio.Group
               optionType="button"
@@ -250,7 +259,7 @@ export const SettingsPage = (): React.JSX.Element => {
             message={ocrModeDescriptions[selectedOcrMode].message}
           />
           <div className="form-grid">
-            <Form.Item label="OCR 服务地址" name="ocrBaseUrl" rules={selectedOcrMode === 'local' ? [] : [{ required: true, message: '请填写 OCR 服务地址。' }]}>
+            <Form.Item label="云端 OCR 服务地址" name="ocrBaseUrl" rules={selectedOcrMode === 'local' ? [] : [{ required: true, message: '请填写云端 OCR 服务地址。' }]}>
               <Input disabled={selectedOcrMode === 'local'} />
             </Form.Item>
             <div className="model-id-field">
@@ -278,8 +287,8 @@ export const SettingsPage = (): React.JSX.Element => {
             <Form.Item
               label={
                 <Space size={4}>
-                  <span>{settings?.hasOcrKey ? '新的 OCR API Key（已保存，可留空）' : 'OCR API Key'}</span>
-                  <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => void openOcrSignupPage()}>注册 / 获取 Key</Button>
+                  <span>{settings?.hasOcrKey ? '更换 OCR API Key（已保存，如无需更换可留空）' : 'OCR API Key'}</span>
+                  <Button type="link" size="small" icon={<LinkOutlined />} onClick={() => void openOcrSignupPage()}>注册并获取 API Key</Button>
                 </Space>
               }
               name="ocrApiKey"
@@ -287,7 +296,7 @@ export const SettingsPage = (): React.JSX.Element => {
             >
               <Input.Password
                 disabled={selectedOcrMode === 'local'}
-                placeholder={selectedOcrMode === 'cloud' ? '必填：所有页面都将调用云端 OCR' : '可选：自动模式需要识别时优先使用云端'}
+                placeholder={selectedOcrMode === 'cloud' ? '必填：所有页面均使用云端 OCR' : '可选：自动模式优先使用云端 OCR'}
                 autoComplete="new-password"
               />
             </Form.Item>
@@ -295,7 +304,7 @@ export const SettingsPage = (): React.JSX.Element => {
         </Card>
         <Space>
           <Button type="primary" htmlType="submit" loading={saving}>保存设置</Button>
-          <Typography.Text type="secondary">模型与 OCR 配置只影响后续运行；全局分类指导请在“规则与记忆”中维护。</Typography.Text>
+          <Typography.Text type="secondary">模型与 OCR 设置仅影响后续分类任务。全局分类指导请在“全局规则与记忆”中管理。</Typography.Text>
         </Space>
       </Form>
     </section>

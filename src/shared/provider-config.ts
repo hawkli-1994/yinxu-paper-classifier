@@ -40,14 +40,14 @@ export const providerGroups: ProviderGroup[] = [
   { id: ProviderGroupId.Cloud, label: '常用云端' },
   { id: ProviderGroupId.Gateway, label: '聚合与路由服务' },
   { id: ProviderGroupId.CodingPlan, label: 'Coding Plan 订阅' },
-  { id: ProviderGroupId.Custom, label: '自定义兼容端点' }
+  { id: ProviderGroupId.Custom, label: '自定义兼容服务' }
 ];
 
 export const providerPresets: ProviderPreset[] = [
   {
     id: 'deepseek',
     label: 'DeepSeek',
-    description: '适合中文论文阅读、归纳与结构化输出的 Pi 内置 Provider。',
+    description: '适合中文论文阅读、归纳和结构化输出，应用已内置连接配置。',
     suggestedModels: ['deepseek-v4-pro', 'deepseek-v4-flash'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://platform.deepseek.com/api_keys'
@@ -55,7 +55,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'qwen-api',
     label: '通义千问（按量 API）',
-    description: 'DashScope 按量计费服务；使用标准兼容端点，不消耗 Coding Plan 订阅额度。',
+    description: 'DashScope 按量计费服务，不使用 Coding Plan 订阅额度。',
     suggestedModels: ['qwen3.5-plus', 'qwen3-coder-plus'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://dashscope.console.aliyun.com/apiKey',
@@ -63,21 +63,21 @@ export const providerPresets: ProviderPreset[] = [
       baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
       api: 'openai-completions'
     },
-    endpointHint: '按量端点：https://dashscope.aliyuncs.com/compatible-mode/v1'
+    endpointHint: '按量计费接口地址：https://dashscope.aliyuncs.com/compatible-mode/v1'
   },
   {
     id: 'moonshotai-cn',
     label: 'Kimi / Moonshot（按量 API）',
-    description: 'Pi 内置 Provider，使用 Moonshot 开放平台的按量计费 API。',
+    description: '使用 Moonshot 开放平台的按量计费 API，应用已内置连接配置。',
     suggestedModels: ['kimi-k2.6', 'kimi-k2.5'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://platform.moonshot.cn/console/api-keys',
-    endpointHint: '按量端点由 Pi 内置管理：https://api.moonshot.cn/v1'
+    endpointHint: '按量计费接口地址：https://api.moonshot.cn/v1'
   },
   {
     id: 'minimax-cn',
     label: 'MiniMax（中国 API）',
-    description: 'Pi 内置 Provider，使用 MiniMax 中国站的按量计费 API。',
+    description: '使用 MiniMax 中国站的按量计费 API，应用已内置连接配置。',
     suggestedModels: ['MiniMax-M2.7', 'MiniMax-M3'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://platform.minimaxi.com/user-center/basic-information/interface-key'
@@ -85,18 +85,18 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'zai-api-cn',
     label: '智谱 GLM（按量 API）',
-    description: '资源包或预付费余额调用；保留 Pi 的智谱请求兼容逻辑，但改用通用按量端点。',
+    description: '使用资源包或预付费余额，通过智谱通用按量计费接口调用。',
     suggestedModels: ['glm-5.2', 'glm-4.7'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
     runtimeProvider: 'zai-coding-cn',
     runtimeBaseUrlOverride: 'https://open.bigmodel.cn/api/paas/v4',
-    endpointHint: '按量端点：https://open.bigmodel.cn/api/paas/v4'
+    endpointHint: '按量计费接口地址：https://open.bigmodel.cn/api/paas/v4'
   },
   {
     id: 'openai',
     label: 'OpenAI',
-    description: 'Pi 内置 Provider，适合使用 OpenAI API 的研究者。',
+    description: '使用 OpenAI 官方 API，应用已内置连接配置。',
     suggestedModels: ['gpt-5', 'gpt-5-mini'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://platform.openai.com/api-keys'
@@ -104,7 +104,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'anthropic',
     label: 'Anthropic',
-    description: 'Pi 内置 Provider，对应 Claude 系列模型。',
+    description: '使用 Anthropic 官方 API，对应 Claude 系列模型。',
     suggestedModels: ['claude-sonnet-4-5', 'claude-opus-4-5'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://console.anthropic.com/settings/keys'
@@ -112,7 +112,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'google',
     label: 'Google Gemini',
-    description: 'Pi 内置 Provider，对应 Google AI Studio 的 Gemini API。',
+    description: '使用 Google AI Studio 提供的 Gemini API。',
     suggestedModels: ['gemini-2.5-pro', 'gemini-2.5-flash'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://aistudio.google.com/apikey'
@@ -120,7 +120,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'groq',
     label: 'Groq',
-    description: 'Pi 内置 Provider，适合使用 Groq 推理服务的用户。',
+    description: '使用 Groq 提供的模型推理服务。',
     suggestedModels: ['llama-3.3-70b-versatile'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://console.groq.com/keys'
@@ -128,7 +128,7 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'mistral',
     label: 'Mistral AI',
-    description: 'Pi 内置 Provider，对应 Mistral 官方 API。',
+    description: '使用 Mistral AI 官方 API。',
     suggestedModels: ['mistral-large-latest'],
     group: ProviderGroupId.Cloud,
     apiKeyUrl: 'https://console.mistral.ai/api-keys/'
@@ -144,16 +144,16 @@ export const providerPresets: ProviderPreset[] = [
   {
     id: 'kimi-coding',
     label: 'Kimi Coding Plan',
-    description: 'Kimi 订阅制 Coding Plan；Pi 内置 Provider 会使用 Kimi Code 的专用接口。',
+    description: 'Kimi 订阅制 Coding Plan，使用 Kimi Code 专用接口。',
     suggestedModels: ['kimi-for-coding'],
     group: ProviderGroupId.CodingPlan,
     apiKeyUrl: 'https://www.kimi.com/code/docs/',
-    endpointHint: '专用端点：https://api.kimi.com/coding/；不会使用 Moonshot 按量余额。'
+    endpointHint: '专用接口地址：https://api.kimi.com/coding/；不使用 Moonshot 按量计费余额。'
   },
   {
     id: 'qwen-coding-plan',
     label: '通义千问 Coding Plan',
-    description: '订阅制 Coding Plan；使用 DashScope 专用端点，与按量 API 完全隔离。',
+    description: '订阅制 Coding Plan，使用 DashScope 专用接口，与按量计费 API 分开使用。',
     suggestedModels: ['qwen3-coder-plus'],
     group: ProviderGroupId.CodingPlan,
     apiKeyUrl: 'https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/',
@@ -161,21 +161,21 @@ export const providerPresets: ProviderPreset[] = [
       baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
       api: 'openai-completions'
     },
-    endpointHint: '专用端点：https://coding.dashscope.aliyuncs.com/v1；不会消耗 DashScope 按量额度。'
+    endpointHint: '专用接口地址：https://coding.dashscope.aliyuncs.com/v1；不使用 DashScope 按量计费额度。'
   },
   {
     id: 'zai-coding-cn',
     label: '智谱 GLM Coding Plan（中国）',
-    description: 'GLM Coding Plan 订阅；Pi 内置 Provider 采用中国站的 Coding 专用接口。',
+    description: 'GLM Coding Plan 订阅，使用中国站 Coding 专用接口。',
     suggestedModels: ['glm-5.2', 'glm-4.7'],
     group: ProviderGroupId.CodingPlan,
     apiKeyUrl: 'https://open.bigmodel.cn/usercenter/apikeys',
-    endpointHint: '专用端点：https://open.bigmodel.cn/api/coding/paas/v4；不会使用通用按量端点。'
+    endpointHint: '专用接口地址：https://open.bigmodel.cn/api/coding/paas/v4；不使用通用按量计费接口。'
   },
   {
     id: CUSTOM_PROVIDER_ID,
-    label: '自定义兼容端点',
-    description: 'OpenAI Chat Completions 兼容服务',
+    label: '自定义兼容服务',
+    description: '连接与 OpenAI Chat Completions 格式兼容的模型服务。',
     suggestedModels: [],
     group: ProviderGroupId.Custom
   }

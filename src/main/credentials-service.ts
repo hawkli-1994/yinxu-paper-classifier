@@ -77,7 +77,7 @@ export const createSessionCredentialVault = (): CredentialVault => ({
 
 export const createElectronCredentialVault = (root: string): CredentialVault => {
   if (!safeStorage.isEncryptionAvailable()) {
-    if (process.platform === 'win32') throw new Error('Windows credential encryption is unavailable.');
+    if (process.platform === 'win32') throw new Error('Windows 系统凭据加密功能不可用。');
     return createSessionCredentialVault();
   }
   return createCredentialVault(root, {

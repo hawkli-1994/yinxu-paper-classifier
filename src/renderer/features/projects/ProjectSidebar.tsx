@@ -9,9 +9,9 @@ interface ProjectSidebarProps {
 }
 
 const statusLabel: Record<ProjectStatus, string> = {
-  imported: '尚未分类',
-  materials_updated: '材料已更新',
-  processing: '处理中',
+  imported: '待分类',
+  materials_updated: '资料已更新',
+  processing: '正在分类',
   review_required: '待复核',
   confirmed: '已确认',
   failed: '处理失败'
@@ -40,7 +40,7 @@ export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX
     try {
       await openProject(projectId);
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '无法打开论文项目。');
+      message.error(error instanceof Error ? error.message : '打开论文项目失败。');
     }
   };
 
@@ -51,7 +51,7 @@ export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX
         <Typography.Text className="company-brand">北京容芯致远科技有限公司</Typography.Text>
       </div>
       <Button className="new-project-button" type="primary" icon={<PlusOutlined />} onClick={onNewProject}>新建论文项目</Button>
-      <Input className="project-search" prefix={<SearchOutlined />} value={query} allowClear placeholder="搜索论文" onChange={(event) => setQuery(event.target.value)} />
+      <Input className="project-search" prefix={<SearchOutlined />} value={query} allowClear placeholder="按题名、作者或文件名搜索" onChange={(event) => setQuery(event.target.value)} />
       <Typography.Text className="project-list-label">论文项目（{projects.length}）</Typography.Text>
       <div className="project-list" role="list" aria-label="论文项目列表">
         {filteredProjects.length ? filteredProjects.map((project) => (
@@ -66,10 +66,10 @@ export const ProjectSidebar = ({ onNewProject }: ProjectSidebarProps): React.JSX
             <span className="project-list-meta">{project.author}</span>
             <span className="project-list-footer"><Tag color={statusColor[project.status]}>{statusLabel[project.status]}</Tag><span>{new Date(project.updatedAt).toLocaleDateString()}</span></span>
           </button>
-        )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query ? '没有匹配项目' : '尚无论文项目'} />}
+        )) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query ? '未找到匹配的论文项目' : '暂无论文项目'} />}
       </div>
       <div className="global-navigation">
-        <Button type={globalPage === 'memory' ? 'primary' : 'text'} icon={<DatabaseOutlined />} onClick={() => setGlobalPage('memory')}>规则与记忆</Button>
+        <Button type={globalPage === 'memory' ? 'primary' : 'text'} icon={<DatabaseOutlined />} onClick={() => setGlobalPage('memory')}>全局规则与记忆</Button>
         <Button type={globalPage === 'settings' ? 'primary' : 'text'} icon={<SettingOutlined />} onClick={() => setGlobalPage('settings')}>设置</Button>
       </div>
     </aside>

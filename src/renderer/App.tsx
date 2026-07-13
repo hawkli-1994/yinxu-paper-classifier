@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FileAddOutlined } from '@ant-design/icons';
 import { Button, ConfigProvider, Empty, Layout, Spin, Typography, message } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 import { MemoryPage } from './features/memory/MemoryPage';
 import { NewProjectModal } from './features/projects/NewProjectModal';
 import { ProjectSidebar } from './features/projects/ProjectSidebar';
@@ -29,7 +30,7 @@ export const App = (): React.JSX.Element => {
         setProjects(loadedProjects);
         if (loadedProjects[0]) await openProject(loadedProjects[0].id);
       })
-      .catch((error) => message.error(error instanceof Error ? error.message : '无法准备本机论文工作区。'));
+      .catch((error) => message.error(error instanceof Error ? error.message : '无法初始化本地论文工作区。'));
     const unsubscribe = window.yinxu.onRunEvent(appendRunEvent);
     return () => {
       active = false;
@@ -37,7 +38,7 @@ export const App = (): React.JSX.Element => {
     };
   }, [appendRunEvent, openProject, setProjects, setSettings]);
 
-  if (!settings) return <ConfigProvider theme={academicTheme}><main className="app-loading"><Spin size="large" /><Typography.Text>正在准备论文项目工作区</Typography.Text></main></ConfigProvider>;
+  if (!settings) return <ConfigProvider theme={academicTheme} locale={zhCN}><main className="app-loading"><Spin size="large" /><Typography.Text>正在初始化论文工作区……</Typography.Text></main></ConfigProvider>;
 
   const content = globalPage === 'settings'
     ? <div className="academic-content global-content"><SettingsPage /></div>
@@ -45,10 +46,10 @@ export const App = (): React.JSX.Element => {
       ? <div className="academic-content global-content"><MemoryPage /></div>
       : workspace
         ? <ProjectWorkspace key={workspace.project.id} />
-        : <main className="workspace-empty"><Empty description={projects.length ? '请选择一个论文项目' : '尚无论文项目'}><Button type="primary" icon={<FileAddOutlined />} onClick={() => setNewProjectOpen(true)}>新建第一个论文项目</Button></Empty></main>;
+        : <main className="workspace-empty"><Empty description={projects.length ? '请从左侧选择论文项目' : '暂无论文项目'}><Button type="primary" icon={<FileAddOutlined />} onClick={() => setNewProjectOpen(true)}>创建论文项目</Button></Empty></main>;
 
   return (
-    <ConfigProvider theme={academicTheme}>
+    <ConfigProvider theme={academicTheme} locale={zhCN}>
       <Layout className="app-shell project-app-shell">
         <Layout.Sider width={300} className="academic-sider project-sider"><ProjectSidebar onNewProject={() => setNewProjectOpen(true)} /></Layout.Sider>
         <Layout className="project-shell-main">{content}</Layout>

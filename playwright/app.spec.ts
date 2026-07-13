@@ -28,13 +28,15 @@ test('manages local paper projects, supplements, workspace tabs, and independent
     await expect(window).toHaveTitle('殷墟论文分类助手');
     await expect(window.locator('vite-error-overlay')).toHaveCount(0);
     await expect(window.getByText('北京容芯致远科技有限公司')).toBeVisible();
-    await expect(window.getByRole('button', { name: '新建第一个论文项目' })).toBeVisible();
-    await window.getByRole('button', { name: '新建第一个论文项目' }).click();
+    await expect(window.getByRole('button', { name: '创建论文项目' })).toBeVisible();
+    await window.getByRole('button', { name: '创建论文项目' }).click();
     await expect(window.getByRole('dialog', { name: '新建论文项目' })).toBeVisible();
     await expect(window.getByRole('button', { name: '选择主论文' })).toBeVisible();
     await expect(window.getByRole('button', { name: '选择补充材料' })).toBeVisible();
-    await window.getByRole('button', { name: '同时添加手工补充说明' }).click();
+    await window.getByRole('button', { name: '添加手动补充说明' }).click();
     await expect(window.getByLabel('补充内容')).toBeVisible();
+    await window.waitForTimeout(250);
+    await window.screenshot({ path: '/tmp/yinxu-copy-new-project.png' });
     await window.getByRole('button', { name: '取消' }).click();
 
     const projectIds = await window.evaluate(async ({ firstPaper, secondPaper, expertFeedback }) => {
@@ -45,7 +47,7 @@ test('manages local paper projects, supplements, workspace tabs, and independent
           title: `项目说明 ${index + 1}`,
           content: `这是用于当前论文项目的第 ${index + 1} 条补充材料。`,
           kind: index === 0 ? 'author_metadata' : 'other',
-          sourceLabel: '用户手工补充'
+          sourceLabel: '用户手动补充'
         }))
       });
       const second = await window.yinxu.createProject({ sourcePdfPath: secondPaper, supplementalFiles: [], supplementalNotes: [] });
@@ -55,7 +57,7 @@ test('manages local paper projects, supplements, workspace tabs, and independent
     await window.reload();
     await expect(window.locator('.project-list-item')).toHaveCount(2);
     await expect(window.getByRole('heading', { name: '殷墟青铜礼器研究' })).toBeVisible();
-    await expect(window.getByRole('tab', { name: '资料' })).toBeVisible();
+    await expect(window.getByRole('tab', { name: '论文资料' })).toBeVisible();
 
     await window.locator('.project-list-item', { hasText: '殷墟甲骨祭祀研究' }).click();
     await expect(window.getByRole('heading', { name: '殷墟甲骨祭祀研究' })).toBeVisible();
@@ -72,20 +74,24 @@ test('manages local paper projects, supplements, workspace tabs, and independent
     expect(await sidebar.evaluate((element) => Math.round(element.getBoundingClientRect().top))).toBe(initialSidebarTop);
     expect(await window.evaluate(() => document.scrollingElement?.scrollTop ?? -1)).toBe(0);
 
-    await window.getByRole('tab', { name: '历史版本' }).click();
-    await expect(window.getByText('尚无分类运行')).toBeVisible();
-    await expect(window.getByText('尚无结果版本')).toBeVisible();
+    await window.getByRole('tab', { name: '分类记录' }).click();
+    await expect(window.getByText('暂无分类任务')).toBeVisible();
+    await expect(window.getByText('暂无结果版本')).toBeVisible();
     await window.getByRole('button', { name: '设置' }).click();
-    await expect(window.getByRole('heading', { name: '模型与 OCR 设置' })).toBeVisible();
-    await expect(window.getByText('Pi Agent 模型')).toBeVisible();
-    await window.getByRole('button', { name: '规则与记忆' }).click();
-    await expect(window.getByRole('heading', { name: '规则与记忆' })).toBeVisible();
+    await expect(window.getByRole('heading', { name: 'AI 模型与 OCR 设置' })).toBeVisible();
+    await expect(window.getByText('AI 分类模型')).toBeVisible();
+    await window.waitForTimeout(250);
+    await window.screenshot({ path: '/tmp/yinxu-copy-settings.png' });
+    await window.getByRole('button', { name: '全局规则与记忆' }).click();
+    await expect(window.getByRole('heading', { name: '全局规则与记忆' })).toBeVisible();
+    await window.waitForTimeout(250);
+    await window.screenshot({ path: '/tmp/yinxu-copy-memory.png' });
 
     await window.locator('.project-list-item', { hasText: '殷墟甲骨祭祀研究' }).click();
     await expect(window.getByText('补充材料 9 份')).toBeVisible();
     expect(await window.evaluate(async (id) => (await window.yinxu.openProject(id)).supplements.filter((item) => !item.removedAt).length, projectIds.first)).toBe(9);
 
-    await window.getByRole('tab', { name: '资料' }).click();
+    await window.getByRole('tab', { name: '论文资料' }).click();
     await expect(window.getByText('博士生反馈.txt')).toBeVisible();
     await window.waitForTimeout(250);
     await window.screenshot({ path: '/tmp/yinxu-p05-workspace.png' });

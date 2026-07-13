@@ -65,9 +65,9 @@ export const ocrPdf = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<s
     });
 
     if (response.status === 429 || response.status >= 500) throw new RetryableOcrError(`OCR request failed: ${response.status}`);
-    if (!response.ok) throw new Error(`OCR request failed: ${response.status}`);
+    if (!response.ok) throw new Error(`云端 OCR 请求失败，服务返回状态码 ${response.status}。`);
     const text = getMessageText(await response.json());
-    if (!text) throw new Error('OCR provider returned no text.');
+    if (!text) throw new Error('云端 OCR 未返回可用文本。');
     return text;
   });
 

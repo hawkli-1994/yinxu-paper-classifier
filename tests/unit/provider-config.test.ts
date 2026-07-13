@@ -35,7 +35,7 @@ describe('provider configuration', () => {
 
   it('keeps Coding Plan providers separate from metered endpoints and credentials', () => {
     expect(getProviderPreset('kimi-coding')?.group).toBe(ProviderGroupId.CodingPlan);
-    expect(getProviderPreset('kimi-coding')?.endpointHint).toContain('专用端点');
+    expect(getProviderPreset('kimi-coding')?.endpointHint).toContain('专用接口地址');
     expect(getProviderCompatibleEndpoint('qwen-coding-plan')?.baseUrl).toBe('https://coding.dashscope.aliyuncs.com/v1');
     expect(getProviderRuntimeId('zai-api-cn')).toBe('zai-coding-cn');
     expect(getAgentCredentialKey({ provider: 'moonshotai-cn' })).not.toBe(getAgentCredentialKey({ provider: 'kimi-coding' }));

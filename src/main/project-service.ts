@@ -243,7 +243,7 @@ export const failClassificationRun = async (
 };
 
 export const saveReviewRevision = async (project: ProjectRecord, result: PaperResult, summary: string): Promise<ProjectRecord> => {
-  if (!project.activeRunId) throw new Error('当前项目没有可复核的分类运行。');
+  if (!project.activeRunId) throw new Error('当前项目没有可供复核的分类结果。');
   const revision = await createResultRevision(project, project.activeRunId, 'review', result, summary, project.activeRevisionId);
   return writeProject({ ...project, status: 'confirmed', activeRevisionId: revision.id, updatedAt: now() });
 };
