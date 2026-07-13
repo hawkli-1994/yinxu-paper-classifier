@@ -10,6 +10,7 @@ export interface OcrConfig {
 }
 
 const imageOnlyOcrModels = new Set(['PaddlePaddle/PaddleOCR-VL-1.5']);
+const qualityValidationAttempts = 3;
 
 export const getOcrInputMediaType = (model: string): 'application/pdf' | 'image/png' =>
   imageOnlyOcrModels.has(model) ? 'image/png' : 'application/pdf';
@@ -67,7 +68,7 @@ export const ocrPdf = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<s
     if (response.status === 429 || response.status >= 500) throw new RetryableOcrError(`OCR request failed: ${response.status}`);
     if (!response.ok) throw new Error(`云端 OCR 请求失败，服务返回状态码 ${response.status}。`);
     const text = getMessageText(await response.json());
-    if (!text) throw new Error('云端 OCR 未返回可用文本。');
+    if (!text) throw new RetryableOcrError('云端 OCR 未返回可用文本。');
     return text;
   });
 
@@ -109,6 +110,21 @@ export interface OcrModeProcessingResult {
   cloudAppliedPages: number[];
   localFallbackPages: number[];
 }
+
+const recognizePageWithQualityValidation = async (
+  pdfBytes: Uint8Array,
+  pages: readonly PageText[],
+  pageNumber: number,
+  config: OcrConfig,
+  recognize: OcrRecognizer
+): Promise<PageText[] | undefined> => {
+  for (let attempt = 1; attempt <= qualityValidationAttempts; attempt += 1) {
+    const candidatePages = await ocrPagesIndividually(pdfBytes, pages, [pageNumber], config, recognize, false);
+    const pageReport = buildTextPreparationReport(candidatePages, [pageNumber]).pages.find((page) => page.page === pageNumber);
+    if (pageReport && !pageReport.needsReview) return candidatePages;
+  }
+  return undefined;
+};
 
 /** Applies the user's OCR choice as a hard execution policy. */
 export const processPagesWithOcrMode = async (
@@ -152,9 +168,8 @@ export const processPagesWithOcrMode = async (
   for (const pageNumber of input.pagesNeedingOcr) {
     cloudAttemptedPages.push(pageNumber);
     try {
-      const candidatePages = await ocrPagesIndividually(input.pdfBytes, pages, [pageNumber], input.config, recognize, false);
-      const pageReport = buildTextPreparationReport(candidatePages, [pageNumber]).pages.find((page) => page.page === pageNumber);
-      if (!pageReport || pageReport.needsReview) {
+      const candidatePages = await recognizePageWithQualityValidation(input.pdfBytes, pages, pageNumber, input.config, recognize);
+      if (!candidatePages) {
         localFallbackPages.push(pageNumber);
         continue;
       }
