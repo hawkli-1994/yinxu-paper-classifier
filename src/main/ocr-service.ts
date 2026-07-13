@@ -16,7 +16,9 @@ export const getOcrInputMediaType = (model: string): 'application/pdf' | 'image/
   imageOnlyOcrModels.has(model) ? 'image/png' : 'application/pdf';
 
 export const getOcrInstruction = (model: string): string =>
-  imageOnlyOcrModels.has(model) ? 'OCR:' : '请逐页识别这份学术论文，输出保留页码的纯文本。';
+  imageOnlyOcrModels.has(model)
+    ? 'OCR:\n请按阅读顺序完整转写整页所有可见文字，逐行保留正文；只输出纯文本，不要概括、解释或遗漏。'
+    : '请逐页识别这份学术论文，输出保留页码的纯文本。';
 
 export type Delay = (milliseconds: number) => Promise<void>;
 
@@ -56,6 +58,8 @@ export const ocrPdf = async (pdfBytes: Uint8Array, config: OcrConfig): Promise<s
       },
       body: JSON.stringify({
         model: config.model,
+        temperature: 0,
+        max_tokens: 8192,
         messages: [
           {
             role: 'user',
@@ -146,7 +150,19 @@ export const processPagesWithOcrMode = async (
   if (input.mode === 'cloud') {
     if (!input.config?.apiKey) throw new Error('云端 OCR 模式必须先配置 OCR API Key。');
     const pageNumbers = input.pages.map((page) => page.page);
-    const pages = await ocrPagesIndividually(input.pdfBytes, input.pages, pageNumbers, input.config, recognize, false);
+    let pages = [...input.pages];
+    for (const pageNumber of pageNumbers) {
+      const original = input.pages.find((page) => page.page === pageNumber);
+      const originalCharacterCount = original?.text.replace(/\s/g, '').length ?? 0;
+      const attempts = originalCharacterCount >= 40 ? qualityValidationAttempts : 1;
+      let candidatePages = pages;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        candidatePages = await ocrPagesIndividually(input.pdfBytes, pages, [pageNumber], input.config, recognize, false);
+        const candidate = candidatePages.find((page) => page.page === pageNumber);
+        if (originalCharacterCount < 40 || (candidate?.text.replace(/\s/g, '').length ?? 0) >= 40) break;
+      }
+      pages = candidatePages;
+    }
     return {
       pages,
       cloudAttemptedPages: pageNumbers,

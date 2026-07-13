@@ -7,7 +7,7 @@ describe('OCR retry', () => {
   it('uses PNG input for PaddleOCR-VL-1.5 and preserves PDF input for DeepSeek-OCR', () => {
     expect(getOcrInputMediaType('PaddlePaddle/PaddleOCR-VL-1.5')).toBe('image/png');
     expect(getOcrInputMediaType('deepseek-ai/DeepSeek-OCR')).toBe('application/pdf');
-    expect(getOcrInstruction('PaddlePaddle/PaddleOCR-VL-1.5')).toBe('OCR:');
+    expect(getOcrInstruction('PaddlePaddle/PaddleOCR-VL-1.5')).toMatch(/^OCR:\n/);
   });
 
   it('retries temporary OCR failures three times', async () => {
@@ -86,7 +86,7 @@ describe('OCR retry', () => {
     }
 
     expect(imageUrl).toMatch(/^data:image\/png;base64,/);
-    expect(instruction).toBe('OCR:');
+    expect(instruction).toMatch(/^OCR:\n/);
   });
 
   it('treats local mode as a hard no-cloud policy', async () => {
@@ -136,6 +136,25 @@ describe('OCR retry', () => {
       pages: [{ page: 1, text: '', source: 'embedded' }],
       pagesNeedingOcr: [1]
     })).rejects.toThrow('必须先配置 OCR API Key');
+  });
+
+  it('retries cloud OCR when it loses an existing full text layer', async () => {
+    const document = await PDFDocument.create();
+    document.addPage();
+    let calls = 0;
+    const result = await processPagesWithOcrMode({
+      mode: 'cloud',
+      pdfBytes: await document.save(),
+      pages: [{ page: 1, text: `原始可检索正文${'甲'.repeat(60)}`, source: 'embedded' }],
+      pagesNeedingOcr: [],
+      config: { baseUrl: 'https://example.com/v1', apiKey: 'key', model: 'ocr' }
+    }, async () => {
+      calls += 1;
+      return calls === 1 ? '过短' : `云端完整识别${'乙'.repeat(60)}`;
+    });
+
+    expect(calls).toBe(2);
+    expect(result.pages[0]?.text).toContain('云端完整识别');
   });
 
   it('uses cloud first in auto mode and falls back when the response has model artifacts', async () => {
