@@ -8,7 +8,7 @@ import { PDFDocument, StandardFonts } from '@pdfme/pdf-lib';
 
 type OcrMode = 'auto' | 'local' | 'cloud';
 
-const classificationAttemptTimeoutMs = 4 * 60_000;
+const classificationAttemptTimeoutMs = 6 * 60_000;
 const classificationCancellationTimeoutMs = 30_000;
 
 const paperLines = [
