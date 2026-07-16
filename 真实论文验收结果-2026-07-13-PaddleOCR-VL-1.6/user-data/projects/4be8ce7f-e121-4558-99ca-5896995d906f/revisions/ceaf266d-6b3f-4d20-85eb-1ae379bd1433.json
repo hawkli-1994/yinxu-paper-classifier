@@ -1,0 +1,279 @@
+{
+  "fields": {
+    "编号": "",
+    "作者": "连劲名",
+    "题名": "商代的拜祭与御祭",
+    "出处": "",
+    "文献类型": "期刊论文",
+    "一级分类": "B 甲骨文字与甲骨学类",
+    "二级分类": "B4 卜辞事类专题",
+    "三级细分类": "B41 祭祀类（周祭/特祭/先祖先妣/牺牲/祭仪/宗庙）",
+    "核心材料载体": "甲骨",
+    "核心研究时段": "商代",
+    "出土地点": "殷墟",
+    "关键词": "拜祭；御祭；殷墟甲骨；祭祀；卜辞",
+    "视觉素材等级": "",
+    "可复原维度": "",
+    "几何精度等级": "",
+    "生图用途分类": "",
+    "风格锚点": "",
+    "可动态化场景": "",
+    "学术可信度": "",
+    "适用工具链": "",
+    "ControlNet条件": "",
+    "训练数据价值": "",
+    "版权使用范围": "",
+    "数字化成果类型": "",
+    "文件路径": "source/original.pdf",
+    "备注": "本文依据殷墟甲骨刻辞，对商代的拜祭、御祭两类祀典进行事类整理，分述受祭的祖先、旧臣、自然神、合祭与延续形式，以及御祭的血祭、大御、御繇、御疾等；原文署名单位：北京教育学院。出处信息在文本中未明确，待核验。"
+  },
+  "primaryCategoryCode": "B41",
+  "crossReferenceCategoryCodes": [],
+  "candidates": [
+    {
+      "code": "B41",
+      "score": 0.95,
+      "reason": "论文以殷墟甲骨刻辞为核心材料，按祭祀事类系统整理‘拜祭’与‘御祭’两种祀典，内容涵盖祭名、受祭者、用牲、祭法、祭祀对象等，完全符合B41祭祀类。"
+    },
+    {
+      "code": "B42",
+      "score": 0.25,
+      "reason": "文中虽设‘拜祭与军事’专节，但只是说明拜祭在军事活动中的使用，未独立研究征伐、方国地理或军制。"
+    },
+    {
+      "code": "B45",
+      "score": 0.2,
+      "reason": "拜年、拜雨涉及天象与农业，但只是拜祭下属祈求丰收的辞例，并非专门研究商代天文历法。"
+    },
+    {
+      "code": "C31",
+      "score": 0.2,
+      "reason": "论文提到祭祀在政治生活中的重要性，但核心是卜辞祭名、辞例和祭祀程序整理，未系统重建商代神权体系。"
+    }
+  ],
+  "evidence": [
+    {
+      "page": 1,
+      "quote": "根据殷墟甲骨刻辞的记载，商代的重要祀典除夕祭外，还有拜祭与御祭，二者目的截然相反，拜祭为了求福，御祭为了除祸。",
+      "reason": "明确研究材料为殷墟甲骨刻辞，研究对象为拜祭、御祭两类祀典，体现祭祀事类整理。"
+    },
+    {
+      "page": 34,
+      "quote": "The most important sacrifices in the Shang Dynasty as the oracle bone inscriptions were Baiji and Yuji, the intentions of which were completely opposite: Baiji was held to pray for blessings and Yuji was held to get rid of misfortunes. The deities of mountains and rivers and other natural objects were also offered with Baiji in diversified ways and complicated procedures. The Yuji was just the sacrificial ceremonies of averting or exorcising, the goals of which were to avoid disasters and warfare and to get rid of devils and diseases.",
+      "reason": "英文摘要总结全文主要结论：对殷墟卜辞中的拜祭、御祭两类祀典进行分类、比较，并涵盖自然神、祖先、疾病等祭祀对象，支持B41。"
+    }
+  ],
+  "ruleConflicts": [],
+  "abstract": "连劲名《商代的拜祭与御祭》以殷墟甲骨刻辞为核心材料，对商代的拜祭与御祭两类祀典进行系统的事类整理。论文先论拜祭，分述单独受祭的祖先与旧臣、合祭与延续形式、拜年拜雨及自然神、拜生、拜嬴、拜祭与军事等；再论御祭，讨论御祭与祓禳、血祭、大御、御祭中的苟、御繇与御疾、御祭中的人物、祖先与自然神等。全文通过大量宾组、历组、无名组、师组等卜辞辞例，说明拜祭为求福，御祭为除祸，揭示了商代祭祀在政治与宗教生活中的重要地位。",
+  "fieldAssessments": {
+    "编号": {
+      "score": 0,
+      "reason": "文本中未出现馆藏号或可用于总库排序的编号，无法生成顺序号，按规则留空。",
+      "evidence": []
+    },
+    "作者": {
+      "score": 1,
+      "reason": "题名页明确列出作者，OCR清晰，可逐字核对。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "连 劲 名",
+          "reason": "题名页作者信息。"
+        }
+      ]
+    },
+    "题名": {
+      "score": 1,
+      "reason": "题名在首页明确出现，与OCR文本完全一致。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "# 商代的拜祭与御祭",
+          "reason": "首页标题。"
+        }
+      ]
+    },
+    "出处": {
+      "score": 0,
+      "reason": "文本中未出现期刊/集刊名、年份、卷期或起止页码，无法从当前文本证明。",
+      "evidence": []
+    },
+    "文献类型": {
+      "score": 0.55,
+      "reason": "文本具有标题页、作者单位、英文摘要和责任编辑，符合期刊论文体例；但无具体刊名或年卷期，出处待核验。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "# 商代的拜祭与御祭\n\n连 劲 名\n\n（北京教育学院，北京100044）",
+          "reason": "标题页格式。"
+        },
+        {
+          "page": 34,
+          "quote": "责任编辑：杨毅",
+          "reason": "出现责任编辑，提示期刊论文来源。"
+        }
+      ]
+    },
+    "一级分类": {
+      "score": 1,
+      "reason": "由主分类代码 B41 确定。",
+      "evidence": []
+    },
+    "二级分类": {
+      "score": 1,
+      "reason": "由主分类代码 B41 确定。",
+      "evidence": []
+    },
+    "三级细分类": {
+      "score": 1,
+      "reason": "由主分类代码 B41 确定。",
+      "evidence": []
+    },
+    "核心材料载体": {
+      "score": 1,
+      "reason": "文本明确说明以殷墟甲骨刻辞为材料，OCR清晰。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "根据殷墟甲骨刻辞的记载",
+          "reason": "核心材料为甲骨刻辞。"
+        }
+      ]
+    },
+    "核心研究时段": {
+      "score": 0.7,
+      "reason": "论文明确讨论‘商代’，但未限定具体王期、甲骨分期或殷墟文化期。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "商代崇尚鬼神，祭祀频繁。",
+          "reason": "研究时段为商代。"
+        }
+      ]
+    },
+    "出土地点": {
+      "score": 1,
+      "reason": "文本明确提到殷墟甲骨刻辞，OCR清晰。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "根据殷墟甲骨刻辞的记载",
+          "reason": "出土地点为殷墟。"
+        }
+      ]
+    },
+    "关键词": {
+      "score": 0.85,
+      "reason": "关键词综合题名、材料、主题提取，文本依据充分。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "# 商代的拜祭与御祭\n\n连 劲 名\n\n（北京教育学院，北京100044）\n\n目次\n\n一 商代的拜祭\n\n二 商代的御祭\n\n商代崇尚鬼神，祭祀频繁。",
+          "reason": "题名、目次与祭祀主题明确。"
+        },
+        {
+          "page": 1,
+          "quote": "根据殷墟甲骨刻辞的记载",
+          "reason": "材料为殷墟甲骨刻辞。"
+        }
+      ]
+    },
+    "视觉素材等级": {
+      "score": 0,
+      "reason": "论文为传统卜辞整理，无图版、照片、复原图像或相关质量说明，不能填写。",
+      "evidence": []
+    },
+    "可复原维度": {
+      "score": 0,
+      "reason": "无三维、几何、复原维度相关内容。",
+      "evidence": []
+    },
+    "几何精度等级": {
+      "score": 0,
+      "reason": "无几何精度相关数据。",
+      "evidence": []
+    },
+    "生图用途分类": {
+      "score": 0,
+      "reason": "无AI生图或复原用途说明。",
+      "evidence": []
+    },
+    "风格锚点": {
+      "score": 0,
+      "reason": "无视觉风格相关说明。",
+      "evidence": []
+    },
+    "可动态化场景": {
+      "score": 0,
+      "reason": "无动态化场景或数字展示内容。",
+      "evidence": []
+    },
+    "学术可信度": {
+      "score": 0,
+      "reason": "该字段适用于AI/数字复原成果，本文未涉及，不适用。",
+      "evidence": []
+    },
+    "适用工具链": {
+      "score": 0,
+      "reason": "无数字工具或AI工具说明。",
+      "evidence": []
+    },
+    "ControlNet条件": {
+      "score": 0,
+      "reason": "无视觉生成控制条件说明。",
+      "evidence": []
+    },
+    "训练数据价值": {
+      "score": 0,
+      "reason": "无图像训练数据或数据集相关信息。",
+      "evidence": []
+    },
+    "版权使用范围": {
+      "score": 0,
+      "reason": "文本未声明版权或授权范围。",
+      "evidence": []
+    },
+    "数字化成果类型": {
+      "score": 0,
+      "reason": "无数字化成果或交互类型说明。",
+      "evidence": []
+    },
+    "文件路径": {
+      "score": 1,
+      "reason": "由项目目录确定。",
+      "evidence": []
+    },
+    "备注": {
+      "score": 0.8,
+      "reason": "综合题名、作者单位、核心观点与缺失信息撰写，出处信息待核验。",
+      "evidence": [
+        {
+          "page": 1,
+          "quote": "# 商代的拜祭与御祭\n\n连 劲 名\n\n（北京教育学院，北京100044）",
+          "reason": "题名与作者单位信息。"
+        }
+      ]
+    }
+  },
+  "ocrQuality": "high",
+  "confidence": 55,
+  "confidenceBand": "red",
+  "reviewStatus": "needs_review",
+  "reviewHistory": [],
+  "validationIssues": [
+    {
+      "code": "UNVERIFIABLE_EVIDENCE",
+      "message": "第 34 页证据无法在提取文本中核对。"
+    },
+    {
+      "code": "MISSING_KEY_METADATA",
+      "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+    }
+  ],
+  "memoryTrace": {
+    "personalPromptApplied": false,
+    "appliedRuleIds": [],
+    "relevantFeedbackIds": [],
+    "conflicts": []
+  }
+}

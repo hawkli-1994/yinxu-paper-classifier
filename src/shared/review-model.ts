@@ -36,7 +36,7 @@ export const updateReviewField = (result: PaperResult, name: PaperFieldName, val
   fields: { ...result.fields, [name]: value },
   fieldAssessments: {
     ...result.fieldAssessments,
-    [name]: { ...result.fieldAssessments[name], score: 1, reason: '人工复核修改。' }
+    [name]: { ...(result.fieldAssessments[name] ?? { evidence: [] }), score: 1, reason: '人工复核修改。' }
   }
 });
 
@@ -52,6 +52,25 @@ export const addReviewEvidence = (result: PaperResult): PaperResult => ({
 
 export const removeReviewEvidence = (result: PaperResult, index: number): PaperResult =>
   result.evidence.length <= 2 ? result : { ...result, evidence: result.evidence.filter((_, candidateIndex) => candidateIndex !== index) };
+
+/** Removes citations that OCR cannot support while preserving the reviewed field value. */
+export const clearReviewFieldEvidence = (result: PaperResult, fields: readonly PaperFieldName[]): PaperResult => {
+  const targetFields = new Set(fields);
+  return {
+    ...result,
+    fieldAssessments: Object.fromEntries(
+      Object.entries(result.fieldAssessments).map(([name, assessment]) => {
+        if (!targetFields.has(name as PaperFieldName)) return [name, assessment];
+        return [name, {
+          ...assessment,
+          score: Math.min(assessment.score, 0.59),
+          reason: `${assessment.reason || '人工复核。'} 原证据无法由当前 OCR 文本逐字核对，已移除，待以原 PDF 复核。`,
+          evidence: []
+        }];
+      })
+    ) as PaperResult['fieldAssessments']
+  };
+};
 
 export const paperResultToDraft = (result: PaperResult): AgentPaperDraft => ({
   fields: result.fields,

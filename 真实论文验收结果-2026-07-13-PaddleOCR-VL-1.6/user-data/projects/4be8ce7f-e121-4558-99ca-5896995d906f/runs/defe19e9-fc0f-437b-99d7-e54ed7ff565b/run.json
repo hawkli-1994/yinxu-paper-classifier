@@ -1,0 +1,18 @@
+{
+  "id": "defe19e9-fc0f-437b-99d7-e54ed7ff565b",
+  "projectId": "4be8ce7f-e121-4558-99ca-5896995d906f",
+  "status": "completed",
+  "startedAt": "2026-07-13T11:07:40.075Z",
+  "previousProjectStatus": "imported",
+  "agentProvider": "kimi-coding",
+  "agentModel": "kimi-for-coding",
+  "thinkingLevel": "medium",
+  "knowledgeVersion": "2.0.1",
+  "ocrModel": "PaddleOCR-VL-1.6",
+  "supplementIds": [],
+  "supplementHashes": [],
+  "supplementContextPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/4be8ce7f-e121-4558-99ca-5896995d906f/runs/defe19e9-fc0f-437b-99d7-e54ed7ff565b/supplement-context.md",
+  "sessionPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/4be8ce7f-e121-4558-99ca-5896995d906f/runs/defe19e9-fc0f-437b-99d7-e54ed7ff565b/session",
+  "completedAt": "2026-07-13T11:09:39.299Z",
+  "resultRevisionId": "ceaf266d-6b3f-4d20-85eb-1ae379bd1433"
+}

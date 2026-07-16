@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addReviewEvidence, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory, updateReviewCrossReferences } from '../../src/shared/review-model';
+import { addReviewEvidence, clearReviewFieldEvidence, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory, updateReviewCrossReferences } from '../../src/shared/review-model';
 import { makePaperResult } from '../fixtures/paper-result';
 
 describe('human review model', () => {
@@ -31,5 +31,20 @@ describe('human review model', () => {
     expect(result.fieldAssessments.出处).toMatchObject({ score: 1, reason: '人工复核修改。' });
     expect(result.evidence[0]).toEqual({ page: 3, quote: '人工核对引文', reason: '人工核对理由' });
     expect(result.evidence.at(-1)).toEqual({ page: 1, quote: '', reason: '' });
+  });
+
+  it('clears unverified field citations without deleting the reviewed field value', () => {
+    const before = makePaperResult({
+      fields: { ...makePaperResult().fields, 核心材料载体: '甲骨' },
+      fieldAssessments: {
+        ...makePaperResult().fieldAssessments,
+        核心材料载体: { score: 0.9, reason: 'OCR 引文待核对。', evidence: [{ page: 8, quote: '不可靠引文', reason: '测试' }] }
+      }
+    });
+    const result = clearReviewFieldEvidence(before, ['核心材料载体']);
+
+    expect(result.fields.核心材料载体).toBe('甲骨');
+    expect(result.fieldAssessments.核心材料载体.score).toBe(0.59);
+    expect(result.fieldAssessments.核心材料载体.evidence).toEqual([]);
   });
 });

@@ -1,0 +1,147 @@
+{
+  "pageCount": 11,
+  "ocrAppliedPages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "emptyPages": [],
+  "quality": "high",
+  "pages": [
+    {
+      "page": 1,
+      "source": "ocr",
+      "characterCount": 1543,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 2,
+      "source": "ocr",
+      "characterCount": 4402,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 3,
+      "source": "ocr",
+      "characterCount": 2602,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 4,
+      "source": "ocr",
+      "characterCount": 3969,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 5,
+      "source": "ocr",
+      "characterCount": 4023,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 6,
+      "source": "ocr",
+      "characterCount": 3335,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 7,
+      "source": "ocr",
+      "characterCount": 1942,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 8,
+      "source": "ocr",
+      "characterCount": 2668,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 9,
+      "source": "ocr",
+      "characterCount": 2266,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 10,
+      "source": "ocr",
+      "characterCount": 2113,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 11,
+      "source": "ocr",
+      "characterCount": 6284,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70107902450429952",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    }
+  ],
+  "ocrMode": "cloud",
+  "ocrProvider": "paddleocr-official",
+  "ocrModel": "PaddleOCR-VL-1.6",
+  "ocrPromptProfile": "paddleocr-official-document-parsing-v1.6",
+  "cloudAttemptedPages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ]
+}

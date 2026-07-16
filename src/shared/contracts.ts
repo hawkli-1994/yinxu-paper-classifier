@@ -6,6 +6,10 @@ export const PAPER_FIELD_NAMES = [
   '编号',
   '作者',
   '题名',
+  '研究领域',
+  '期刊名称',
+  '发表时间',
+  '期号',
   '出处',
   '文献类型',
   '一级分类',
@@ -37,7 +41,7 @@ export type ConfidenceBand = 'green' | 'yellow' | 'red';
 export type OcrQuality = 'high' | 'low' | 'unknown';
 export const PADDLE_OCR_BASE_URL = 'https://paddleocr.aistudio-app.com';
 export const PADDLE_OCR_MODEL_ID = 'PaddleOCR-VL-1.6';
-export const PADDLE_OCR_PIPELINE_PROFILE = 'paddleocr-official-document-parsing-v1.6';
+export const PADDLE_OCR_PIPELINE_PROFILE = 'paddleocr-official-document-parsing-v1.7-header-footer';
 export const PADDLE_OCR_ACCESS_TOKEN_URL = 'https://aistudio.baidu.com/account/accessToken';
 export type OcrMode = 'cloud';
 export type ReviewStatus = 'needs_review' | 'confirmed';
@@ -100,6 +104,8 @@ export interface ReviewFeedbackInput {
   projectReason: string;
   memoryAction: FeedbackMemoryAction;
   reusableLesson: string;
+  /** Records that a reviewer checked the source PDF when OCR text cannot support an exact match. */
+  manualEvidenceConfirmed?: boolean;
 }
 
 export type RuleScope = 'all_papers' | 'conditional';

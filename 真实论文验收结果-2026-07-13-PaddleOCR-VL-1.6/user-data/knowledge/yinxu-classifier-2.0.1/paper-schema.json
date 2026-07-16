@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yinxu.local/schemas/paper-draft.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fields", "primaryCategoryCode", "crossReferenceCategoryCodes", "candidates", "evidence", "ruleConflicts", "abstract", "fieldAssessments"],
+  "properties": {
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["编号", "作者", "题名", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
+      "properties": {
+        "编号": {"type": "string"}, "作者": {"type": "string"}, "题名": {"type": "string"}, "出处": {"type": "string"},
+        "文献类型": {"type": "string"}, "一级分类": {"type": "string"}, "二级分类": {"type": "string"}, "三级细分类": {"type": "string"},
+        "核心材料载体": {"type": "string"}, "核心研究时段": {"type": "string"}, "出土地点": {"type": "string"}, "关键词": {"type": "string"},
+        "视觉素材等级": {"type": "string"}, "可复原维度": {"type": "string"}, "几何精度等级": {"type": "string"}, "生图用途分类": {"type": "string"},
+        "风格锚点": {"type": "string"}, "可动态化场景": {"type": "string"}, "学术可信度": {"type": "string"}, "适用工具链": {"type": "string"},
+        "ControlNet条件": {"type": "string"}, "训练数据价值": {"type": "string"}, "版权使用范围": {"type": "string"}, "数字化成果类型": {"type": "string"},
+        "文件路径": {"type": "string"}, "备注": {"type": "string"}
+      }
+    },
+    "primaryCategoryCode": {"type": "string", "pattern": "^[A-D][1-4][1-9]$"},
+    "crossReferenceCategoryCodes": {"type": "array", "maxItems": 3, "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-D][1-4][1-9]$"}},
+    "candidates": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/candidate"}},
+    "evidence": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/evidence"}},
+    "ruleConflicts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "abstract": {"type": "string", "minLength": 20},
+    "fieldAssessments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["编号", "作者", "题名", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
+      "properties": {
+        "编号": {"$ref": "#/$defs/fieldAssessment"}, "作者": {"$ref": "#/$defs/fieldAssessment"}, "题名": {"$ref": "#/$defs/fieldAssessment"}, "出处": {"$ref": "#/$defs/fieldAssessment"},
+        "文献类型": {"$ref": "#/$defs/fieldAssessment"}, "一级分类": {"$ref": "#/$defs/fieldAssessment"}, "二级分类": {"$ref": "#/$defs/fieldAssessment"}, "三级细分类": {"$ref": "#/$defs/fieldAssessment"},
+        "核心材料载体": {"$ref": "#/$defs/fieldAssessment"}, "核心研究时段": {"$ref": "#/$defs/fieldAssessment"}, "出土地点": {"$ref": "#/$defs/fieldAssessment"}, "关键词": {"$ref": "#/$defs/fieldAssessment"},
+        "视觉素材等级": {"$ref": "#/$defs/fieldAssessment"}, "可复原维度": {"$ref": "#/$defs/fieldAssessment"}, "几何精度等级": {"$ref": "#/$defs/fieldAssessment"}, "生图用途分类": {"$ref": "#/$defs/fieldAssessment"},
+        "风格锚点": {"$ref": "#/$defs/fieldAssessment"}, "可动态化场景": {"$ref": "#/$defs/fieldAssessment"}, "学术可信度": {"$ref": "#/$defs/fieldAssessment"}, "适用工具链": {"$ref": "#/$defs/fieldAssessment"},
+        "ControlNet条件": {"$ref": "#/$defs/fieldAssessment"}, "训练数据价值": {"$ref": "#/$defs/fieldAssessment"}, "版权使用范围": {"$ref": "#/$defs/fieldAssessment"}, "数字化成果类型": {"$ref": "#/$defs/fieldAssessment"},
+        "文件路径": {"$ref": "#/$defs/fieldAssessment"}, "备注": {"$ref": "#/$defs/fieldAssessment"}
+      }
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object", "additionalProperties": false, "required": ["page", "quote", "reason"],
+      "properties": {"page": {"type": "integer", "minimum": 1}, "quote": {"type": "string", "minLength": 2}, "reason": {"type": "string", "minLength": 2}}
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false, "required": ["code", "score", "reason"],
+      "properties": {"code": {"type": "string", "pattern": "^[A-D][1-4][1-9]$"}, "score": {"type": "number", "minimum": 0, "maximum": 1}, "reason": {"type": "string", "minLength": 2}}
+    },
+    "fieldAssessment": {
+      "type": "object", "additionalProperties": false, "required": ["score", "reason", "evidence"],
+      "properties": {"score": {"type": "number", "minimum": 0, "maximum": 1}, "reason": {"type": "string"}, "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}}
+    }
+  }
+}

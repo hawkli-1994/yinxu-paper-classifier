@@ -1,0 +1,71 @@
+{
+  "paperName": "商代有领璧环的分布、源流与功用研究.pdf",
+  "sourcePath": "/Users/krli/workspace/0701/essay/商代有领璧环的分布、源流与功用研究.pdf",
+  "expectedCategoryCode": "A23",
+  "startedAt": "2026-07-13T11:09:39.333Z",
+  "status": "passed",
+  "projectId": "02623400-cf11-4f4f-8048-5b4ea520d4af",
+  "pageCount": 15,
+  "ocr": {
+    "provider": "paddleocr-official",
+    "model": "PaddleOCR-VL-1.6",
+    "profile": "paddleocr-official-document-parsing-v1.6",
+    "quality": "high",
+    "elapsedSeconds": 236,
+    "totalCharacters": 93035,
+    "characterCounts": [
+      1698,
+      2834,
+      26716,
+      4465,
+      4109,
+      4524,
+      1665,
+      1679,
+      3068,
+      11572,
+      11557,
+      11433,
+      3823,
+      1935,
+      1957
+    ],
+    "reviewPages": [],
+    "qualityFlags": []
+  },
+  "completedAt": "2026-07-13T11:16:13.578Z",
+  "totalElapsedSeconds": 394,
+  "classification": {
+    "provider": "kimi-coding",
+    "model": "kimi-for-coding",
+    "elapsedSeconds": 158,
+    "attempts": 1,
+    "title": "商代有领璧环的分布、源流与功用研究",
+    "author": "孟淼",
+    "primaryCategoryCode": "A23",
+    "expectedCategoryCode": "A23",
+    "expectedCategoryMatched": true,
+    "crossReferenceCategoryCodes": [
+      "C14"
+    ],
+    "confidence": 85,
+    "confidenceBand": "green",
+    "reviewStatus": "needs_review",
+    "candidateCount": 2,
+    "evidenceCount": 2,
+    "validationIssues": [
+      {
+        "code": "UNVERIFIABLE_FIELD_EVIDENCE",
+        "message": "出土地点字段的第 6 页证据无法核对。"
+      },
+      {
+        "code": "MISSING_KEY_METADATA",
+        "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+      }
+    ]
+  },
+  "export": {
+    "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/商代有领璧环的分布、源流与功用研究-PaddleOCR-VL-1.6.xlsx",
+    "bytes": 17329
+  }
+}

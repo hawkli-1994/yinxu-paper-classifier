@@ -105,6 +105,25 @@ describe('paper result normalization', () => {
     expect(result.fieldAssessments.视觉素材等级.score).toBe(1);
   });
 
+  it('allows a reviewer to confirm source evidence when OCR cannot reproduce it', () => {
+    const draft = makeAgentDraft({
+      evidence: [
+        { page: 1, quote: '原 PDF 可见但 OCR 漏识别的引文一', reason: '人工核对' },
+        { page: 2, quote: '原 PDF 可见但 OCR 漏识别的引文二', reason: '人工核对' }
+      ]
+    });
+
+    expect(() => normalizePaperResult(draft, pages, { ocrQuality: 'low', reviewed: true })).toThrow(PaperResultValidationError);
+
+    const result = normalizePaperResult(draft, pages, {
+      ocrQuality: 'low',
+      reviewed: true,
+      manualEvidenceConfirmed: true
+    });
+    expect(result.reviewStatus).toBe('confirmed');
+    expect(result.validationIssues.map((issue) => issue.code)).not.toContain('UNVERIFIABLE_EVIDENCE');
+  });
+
   it('preserves the retrieved memory trace for audit and review', () => {
     const memoryTrace = { personalPromptApplied: true, appliedRuleIds: ['rule-1'], relevantFeedbackIds: ['feedback-1'], conflicts: [] };
     const result = normalizePaperResult(makeAgentDraft(), pages, { ocrQuality: 'high', memoryTrace });
