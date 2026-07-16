@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "id": "78f207ed-2c6e-4a19-9462-e7e465fadc93",
+  "rootPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/78f207ed-2c6e-4a19-9462-e7e465fadc93",
+  "sourcePdfPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/78f207ed-2c6e-4a19-9462-e7e465fadc93/source/original.pdf",
+  "sourceFileName": "关于殷墟文化考古分期的几个问题.pdf",
+  "sourceSha256": "49d537203c4b907736033720ca0f020b879699dacd18c81bff56ed65e83255a8",
+  "status": "review_required",
+  "createdAt": "2026-07-13T11:03:41.561Z",
+  "updatedAt": "2026-07-13T11:05:57.828Z",
+  "knowledgeVersion": "2.0.1",
+  "ocrModel": "PaddleOCR-VL-1.6",
+  "agentProvider": "kimi-coding",
+  "agentModel": "kimi-for-coding",
+  "thinkingLevel": "medium",
+  "activeRunId": "856f00b4-2979-4b09-9927-bcc2f5615a6a",
+  "activeRevisionId": "6c94f88d-b45e-4f57-8e40-4aab26cfb255"
+}

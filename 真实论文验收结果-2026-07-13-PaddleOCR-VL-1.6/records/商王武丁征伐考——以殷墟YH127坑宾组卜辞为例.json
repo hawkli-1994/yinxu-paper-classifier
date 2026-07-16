@@ -1,0 +1,49 @@
+{
+  "paperName": "商王武丁征伐考——以殷墟YH127坑宾组卜辞为例.pdf",
+  "sourcePath": "/Users/krli/workspace/0701/essay/商王武丁征伐考——以殷墟YH127坑宾组卜辞为例.pdf",
+  "expectedCategoryCode": "B42",
+  "startedAt": "2026-07-13T11:16:13.579Z",
+  "status": "passed",
+  "projectId": "f6fd2c12-2490-4100-9b55-fba58bd11882",
+  "pageCount": 4,
+  "ocr": {
+    "provider": "paddleocr-official",
+    "model": "PaddleOCR-VL-1.6",
+    "profile": "paddleocr-official-document-parsing-v1.6",
+    "quality": "high",
+    "elapsedSeconds": 32,
+    "totalCharacters": 7393,
+    "characterCounts": [
+      2017,
+      1762,
+      2003,
+      1611
+    ],
+    "reviewPages": [],
+    "qualityFlags": []
+  },
+  "completedAt": "2026-07-13T11:20:22.046Z",
+  "totalElapsedSeconds": 248,
+  "classification": {
+    "provider": "kimi-coding",
+    "model": "kimi-for-coding",
+    "elapsedSeconds": 217,
+    "attempts": 1,
+    "title": "商王武丁征伐考——以殷墟YH127坑宾组卜辞为例",
+    "author": "徐明波",
+    "primaryCategoryCode": "B42",
+    "expectedCategoryCode": "B42",
+    "expectedCategoryMatched": true,
+    "crossReferenceCategoryCodes": [],
+    "confidence": 95,
+    "confidenceBand": "green",
+    "reviewStatus": "needs_review",
+    "candidateCount": 3,
+    "evidenceCount": 4,
+    "validationIssues": []
+  },
+  "export": {
+    "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/商王武丁征伐考——以殷墟YH127坑宾组卜辞为例-PaddleOCR-VL-1.6.xlsx",
+    "bytes": 17451
+  }
+}

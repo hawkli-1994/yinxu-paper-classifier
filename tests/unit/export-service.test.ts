@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 describe('Excel export', () => {
-  it('exports the exact A-Z column order and all required worksheets', async () => {
+  it('exports the exact structured field column order and all required worksheets', async () => {
     const root = await mkdtemp(join(tmpdir(), 'yinxu-export-'));
     roots.push(root);
     const source = join(root, 'sample.pdf');
@@ -32,6 +32,7 @@ describe('Excel export', () => {
 
     const headerValues = classification?.getRow(1).values;
     expect(Array.isArray(headerValues) ? headerValues.slice(1) : []).toEqual(PAPER_FIELD_NAMES);
+    expect(classification?.autoFilter).toBe('A1:AD2');
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(['论文分类结果', '三级分类目录', '处理说明', '字段评估', '图像素材库']);
     expect(images?.getRow(1).values).toEqual([
       undefined,

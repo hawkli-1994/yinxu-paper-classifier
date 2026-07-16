@@ -1,0 +1,51 @@
+{
+  "pageCount": 3,
+  "ocrAppliedPages": [
+    1,
+    2,
+    3
+  ],
+  "emptyPages": [],
+  "quality": "high",
+  "pages": [
+    {
+      "page": 1,
+      "source": "ocr",
+      "characterCount": 1450,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70112334050152448",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 2,
+      "source": "ocr",
+      "characterCount": 1986,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70112334050152448",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    },
+    {
+      "page": 3,
+      "source": "ocr",
+      "characterCount": 1892,
+      "needsReview": false,
+      "qualityFlags": [],
+      "ocrTraceId": "70112334050152448",
+      "ocrFinishReason": "completed",
+      "ocrAttempts": 1
+    }
+  ],
+  "ocrMode": "cloud",
+  "ocrProvider": "paddleocr-official",
+  "ocrModel": "PaddleOCR-VL-1.6",
+  "ocrPromptProfile": "paddleocr-official-document-parsing-v1.6",
+  "cloudAttemptedPages": [
+    1,
+    2,
+    3
+  ]
+}

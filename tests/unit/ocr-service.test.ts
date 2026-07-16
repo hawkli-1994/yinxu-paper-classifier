@@ -43,6 +43,15 @@ afterEach(async () => {
 });
 
 describe('PaddleOCR official cloud pipeline', () => {
+  it('keeps scholarly running headers and footers in the Markdown output', () => {
+    expect(PADDLE_DOCUMENT_PARSING_REQUEST.options).toMatchObject({
+      markdownIgnoreLabels: ['number', 'footnote', 'aside_text'],
+      useDocOrientationClassify: true,
+      useDocUnwarping: true,
+      useLayoutDetection: true
+    });
+  });
+
   it('uses the official TypeScript SDK endpoint, model, options, and Access Token', async () => {
     const filePath = await createPdf();
     const originalFetch = globalThis.fetch;

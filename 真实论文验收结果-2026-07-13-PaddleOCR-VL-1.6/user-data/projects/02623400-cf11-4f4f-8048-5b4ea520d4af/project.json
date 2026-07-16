@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "id": "02623400-cf11-4f4f-8048-5b4ea520d4af",
+  "rootPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/02623400-cf11-4f4f-8048-5b4ea520d4af",
+  "sourcePdfPath": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/user-data/projects/02623400-cf11-4f4f-8048-5b4ea520d4af/source/original.pdf",
+  "sourceFileName": "商代有领璧环的分布、源流与功用研究.pdf",
+  "sourceSha256": "7de8c28c8e13ff0606f00237fbeb1fed7ade7a8165454eada35d280f81f0c145",
+  "status": "review_required",
+  "createdAt": "2026-07-13T11:09:39.335Z",
+  "updatedAt": "2026-07-13T11:16:13.550Z",
+  "knowledgeVersion": "2.0.1",
+  "ocrModel": "PaddleOCR-VL-1.6",
+  "agentProvider": "kimi-coding",
+  "agentModel": "kimi-for-coding",
+  "thinkingLevel": "medium",
+  "activeRunId": "f957db4f-3bde-449d-9f88-2d3bc8fe7e54",
+  "activeRevisionId": "88978fe3-e8d1-40dc-8872-11c1d82199ab"
+}

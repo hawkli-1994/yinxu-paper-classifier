@@ -1,0 +1,61 @@
+{
+  "paperName": "关于殷墟文化考古分期的几个问题.pdf",
+  "sourcePath": "/Users/krli/workspace/0701/essay/关于殷墟文化考古分期的几个问题.pdf",
+  "expectedCategoryCode": "A41",
+  "startedAt": "2026-07-13T11:03:41.523Z",
+  "status": "passed",
+  "projectId": "78f207ed-2c6e-4a19-9462-e7e465fadc93",
+  "pageCount": 11,
+  "ocr": {
+    "provider": "paddleocr-official",
+    "model": "PaddleOCR-VL-1.6",
+    "profile": "paddleocr-official-document-parsing-v1.6",
+    "quality": "high",
+    "elapsedSeconds": 46,
+    "totalCharacters": 35147,
+    "characterCounts": [
+      1543,
+      4402,
+      2602,
+      3969,
+      4023,
+      3335,
+      1942,
+      2668,
+      2266,
+      2113,
+      6284
+    ],
+    "reviewPages": [],
+    "qualityFlags": []
+  },
+  "completedAt": "2026-07-13T11:05:57.865Z",
+  "totalElapsedSeconds": 136,
+  "classification": {
+    "provider": "kimi-coding",
+    "model": "kimi-for-coding",
+    "elapsedSeconds": 90,
+    "attempts": 1,
+    "title": "关于殷墟文化考古分期的几个问题",
+    "author": "范毓周",
+    "primaryCategoryCode": "A41",
+    "expectedCategoryCode": "A41",
+    "expectedCategoryMatched": true,
+    "crossReferenceCategoryCodes": [],
+    "confidence": 90,
+    "confidenceBand": "green",
+    "reviewStatus": "needs_review",
+    "candidateCount": 3,
+    "evidenceCount": 2,
+    "validationIssues": [
+      {
+        "code": "MISSING_KEY_METADATA",
+        "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+      }
+    ]
+  },
+  "export": {
+    "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/关于殷墟文化考古分期的几个问题-PaddleOCR-VL-1.6.xlsx",
+    "bytes": 17249
+  }
+}

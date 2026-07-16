@@ -4,6 +4,8 @@ import {
   type OcrQuality,
   type MemoryTrace,
   type PageText,
+  type PaperFields,
+  type FieldAssessments,
   type PaperFieldName,
   type PaperResult,
   type ReviewHistoryEntry,
@@ -22,11 +24,17 @@ export class PaperResultValidationError extends Error {
 export interface NormalizeResultContext {
   ocrQuality: OcrQuality;
   reviewed?: boolean;
+  manualEvidenceConfirmed?: boolean;
   reviewHistory?: ReviewHistoryEntry[];
   memoryTrace?: MemoryTrace;
 }
 
-const visualFields = new Set<PaperFieldName>(PAPER_FIELD_NAMES.slice(12, 24));
+const visualFields = new Set<PaperFieldName>([
+  '视觉素材等级', '可复原维度', '几何精度等级', '生图用途分类', '风格锚点', '可动态化场景',
+  '学术可信度', '适用工具链', 'ControlNet条件', '训练数据价值', '版权使用范围', '数字化成果类型'
+]);
+
+const emptyAssessment = () => ({ score: 0, reason: '旧版结果未包含该字段，待补充。', evidence: [] });
 
 const correctEvidencePage = <T extends { page: number; quote: string }>(evidence: T, pages: readonly PageText[]): T => {
   const citedPage = pages.find((page) => page.page === evidence.page);
@@ -44,13 +52,17 @@ export const normalizePaperResult = (
     throw new PaperResultValidationError([{ code: 'INVALID_PRIMARY_CATEGORY', message: '主分类必须是有效的三级分类。' }]);
   }
   const path = getCategoryPath(draft.primaryCategoryCode);
-  const fields = { ...draft.fields };
+  // Older project snapshots do not have newer structured metadata fields.
+  const fields = Object.fromEntries(PAPER_FIELD_NAMES.map((name) => [name, draft.fields[name] ?? ''])) as PaperFields;
   fields.一级分类 = `${path[0]?.code} ${path[0]?.label}`;
   fields.二级分类 = `${path[1]?.code} ${path[1]?.label}`;
   fields.三级细分类 = `${path[2]?.code} ${path[2]?.label}`;
   fields.文件路径 = 'source/original.pdf';
 
-  const fieldAssessments = structuredClone(draft.fieldAssessments);
+  const fieldAssessments = Object.fromEntries(PAPER_FIELD_NAMES.map((name) => [
+    name,
+    structuredClone(draft.fieldAssessments[name] ?? emptyAssessment())
+  ])) as FieldAssessments;
   for (const assessment of Object.values(fieldAssessments)) {
     assessment.evidence = assessment.evidence.map((evidence) => correctEvidencePage(evidence, pages));
   }
@@ -117,7 +129,17 @@ export const normalizePaperResult = (
     validationIssues: [],
     memoryTrace: context.memoryTrace
   };
-  const issues = [...normalizationIssues, ...validatePaperResult(provisional, pages)];
+  const validationIssues = validatePaperResult(provisional, pages);
+  // OCR can legitimately diverge from a readable source PDF. A reviewer may explicitly
+  // attest to the source evidence; keep the normal validation for every other problem.
+  const issues = [
+    ...normalizationIssues,
+    ...validationIssues.filter((issue) => !(
+      context.reviewed
+      && context.manualEvidenceConfirmed
+      && (issue.code === 'UNVERIFIABLE_EVIDENCE' || issue.code === 'UNVERIFIABLE_FIELD_EVIDENCE')
+    ))
+  ];
   if (context.reviewed && issues.length > 0) throw new PaperResultValidationError(issues);
   const confidence = calculateConfidence(provisional, issues);
   return { ...provisional, confidence: confidence.score, confidenceBand: confidence.band, validationIssues: issues };

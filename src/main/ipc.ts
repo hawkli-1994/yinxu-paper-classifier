@@ -365,7 +365,7 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     assertProjectNotClassifying(projectId);
     let project = await readProject(getProjectDirectory(appRoot, projectId));
     const before = await getResult(project);
-    const feedbackInput = feedback ?? { errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '' };
+    const feedbackInput = feedback ?? { errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '', manualEvidenceConfirmed: false };
     if (feedbackInput.memoryAction === 'candidate_rule' && !feedbackInput.reusableLesson.trim()) {
       throw new Error('提交跨项目候选规则前，请填写跨项目处理原则。');
     }
@@ -377,11 +377,13 @@ export const registerIpcHandlers = (appRoot: string, knowledgePackage: Knowledge
     const normalizedBase = normalizePaperResult(paperResultToDraft(result), await readPreparedPages(project), {
       ocrQuality: textReport.quality,
       reviewed: true,
+      manualEvidenceConfirmed: feedbackInput.manualEvidenceConfirmed === true,
       reviewHistory: before.reviewHistory ?? [],
       memoryTrace: before.memoryTrace
     });
     const changeSummary = summarizeReviewChanges(before, normalizedBase);
-    const revisionSummary = projectReason ? `${changeSummary}；本论文复核说明：${projectReason}` : changeSummary;
+    const evidenceSummary = feedbackInput.manualEvidenceConfirmed ? '已按原 PDF 人工确认无法由 OCR 文本逐字核对的证据' : '';
+    const revisionSummary = [changeSummary, evidenceSummary, projectReason ? `本论文复核说明：${projectReason}` : ''].filter(Boolean).join('；');
     const normalized = {
       ...normalizedBase,
       reviewHistory: [...(before.reviewHistory ?? []), { at: new Date().toISOString(), summary: revisionSummary }]

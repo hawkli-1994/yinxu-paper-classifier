@@ -1,0 +1,333 @@
+{
+  "generatedAt": "2026-07-13T11:23:20.062Z",
+  "outputRoot": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6",
+  "stateRoot": "/tmp/yinxu-e2e-paddle16-state",
+  "total": 5,
+  "passed": 5,
+  "failed": 0,
+  "categoryMatches": 5,
+  "results": [
+    {
+      "paperName": "关于殷墟文化考古分期的几个问题.pdf",
+      "sourcePath": "/Users/krli/workspace/0701/essay/关于殷墟文化考古分期的几个问题.pdf",
+      "expectedCategoryCode": "A41",
+      "startedAt": "2026-07-13T11:03:41.523Z",
+      "status": "passed",
+      "projectId": "78f207ed-2c6e-4a19-9462-e7e465fadc93",
+      "pageCount": 11,
+      "ocr": {
+        "provider": "paddleocr-official",
+        "model": "PaddleOCR-VL-1.6",
+        "profile": "paddleocr-official-document-parsing-v1.6",
+        "quality": "high",
+        "elapsedSeconds": 46,
+        "totalCharacters": 35147,
+        "characterCounts": [
+          1543,
+          4402,
+          2602,
+          3969,
+          4023,
+          3335,
+          1942,
+          2668,
+          2266,
+          2113,
+          6284
+        ],
+        "reviewPages": [],
+        "qualityFlags": []
+      },
+      "completedAt": "2026-07-13T11:05:57.865Z",
+      "totalElapsedSeconds": 136,
+      "classification": {
+        "provider": "kimi-coding",
+        "model": "kimi-for-coding",
+        "elapsedSeconds": 90,
+        "attempts": 1,
+        "title": "关于殷墟文化考古分期的几个问题",
+        "author": "范毓周",
+        "primaryCategoryCode": "A41",
+        "expectedCategoryCode": "A41",
+        "expectedCategoryMatched": true,
+        "crossReferenceCategoryCodes": [],
+        "confidence": 90,
+        "confidenceBand": "green",
+        "reviewStatus": "needs_review",
+        "candidateCount": 3,
+        "evidenceCount": 2,
+        "validationIssues": [
+          {
+            "code": "MISSING_KEY_METADATA",
+            "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+          }
+        ]
+      },
+      "export": {
+        "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/关于殷墟文化考古分期的几个问题-PaddleOCR-VL-1.6.xlsx",
+        "bytes": 17249
+      }
+    },
+    {
+      "paperName": "商代的拜祭与御祭.pdf",
+      "sourcePath": "/Users/krli/workspace/0701/essay/商代的拜祭与御祭.pdf",
+      "expectedCategoryCode": "B41",
+      "startedAt": "2026-07-13T11:05:57.867Z",
+      "status": "passed",
+      "projectId": "4be8ce7f-e121-4558-99ca-5896995d906f",
+      "pageCount": 34,
+      "ocr": {
+        "provider": "paddleocr-official",
+        "model": "PaddleOCR-VL-1.6",
+        "profile": "paddleocr-official-document-parsing-v1.6",
+        "quality": "high",
+        "elapsedSeconds": 102,
+        "totalCharacters": 24308,
+        "characterCounts": [
+          511,
+          624,
+          556,
+          690,
+          514,
+          478,
+          608,
+          556,
+          592,
+          730,
+          648,
+          582,
+          512,
+          643,
+          865,
+          401,
+          688,
+          618,
+          899,
+          998,
+          799,
+          784,
+          712,
+          718,
+          530,
+          498,
+          479,
+          643,
+          669,
+          774,
+          993,
+          1348,
+          572,
+          2076
+        ],
+        "reviewPages": [],
+        "qualityFlags": []
+      },
+      "completedAt": "2026-07-13T11:09:39.332Z",
+      "totalElapsedSeconds": 221,
+      "classification": {
+        "provider": "kimi-coding",
+        "model": "kimi-for-coding",
+        "elapsedSeconds": 119,
+        "attempts": 1,
+        "title": "商代的拜祭与御祭",
+        "author": "连劲名",
+        "primaryCategoryCode": "B41",
+        "expectedCategoryCode": "B41",
+        "expectedCategoryMatched": true,
+        "crossReferenceCategoryCodes": [],
+        "confidence": 55,
+        "confidenceBand": "red",
+        "reviewStatus": "needs_review",
+        "candidateCount": 4,
+        "evidenceCount": 2,
+        "validationIssues": [
+          {
+            "code": "UNVERIFIABLE_EVIDENCE",
+            "message": "第 34 页证据无法在提取文本中核对。"
+          },
+          {
+            "code": "MISSING_KEY_METADATA",
+            "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+          }
+        ]
+      },
+      "export": {
+        "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/商代的拜祭与御祭-PaddleOCR-VL-1.6.xlsx",
+        "bytes": 17310
+      }
+    },
+    {
+      "paperName": "商代有领璧环的分布、源流与功用研究.pdf",
+      "sourcePath": "/Users/krli/workspace/0701/essay/商代有领璧环的分布、源流与功用研究.pdf",
+      "expectedCategoryCode": "A23",
+      "startedAt": "2026-07-13T11:09:39.333Z",
+      "status": "passed",
+      "projectId": "02623400-cf11-4f4f-8048-5b4ea520d4af",
+      "pageCount": 15,
+      "ocr": {
+        "provider": "paddleocr-official",
+        "model": "PaddleOCR-VL-1.6",
+        "profile": "paddleocr-official-document-parsing-v1.6",
+        "quality": "high",
+        "elapsedSeconds": 236,
+        "totalCharacters": 93035,
+        "characterCounts": [
+          1698,
+          2834,
+          26716,
+          4465,
+          4109,
+          4524,
+          1665,
+          1679,
+          3068,
+          11572,
+          11557,
+          11433,
+          3823,
+          1935,
+          1957
+        ],
+        "reviewPages": [],
+        "qualityFlags": []
+      },
+      "completedAt": "2026-07-13T11:16:13.578Z",
+      "totalElapsedSeconds": 394,
+      "classification": {
+        "provider": "kimi-coding",
+        "model": "kimi-for-coding",
+        "elapsedSeconds": 158,
+        "attempts": 1,
+        "title": "商代有领璧环的分布、源流与功用研究",
+        "author": "孟淼",
+        "primaryCategoryCode": "A23",
+        "expectedCategoryCode": "A23",
+        "expectedCategoryMatched": true,
+        "crossReferenceCategoryCodes": [
+          "C14"
+        ],
+        "confidence": 85,
+        "confidenceBand": "green",
+        "reviewStatus": "needs_review",
+        "candidateCount": 2,
+        "evidenceCount": 2,
+        "validationIssues": [
+          {
+            "code": "UNVERIFIABLE_FIELD_EVIDENCE",
+            "message": "出土地点字段的第 6 页证据无法核对。"
+          },
+          {
+            "code": "MISSING_KEY_METADATA",
+            "message": "作者、题名、出处和摘要是分类所需的关键元数据。"
+          }
+        ]
+      },
+      "export": {
+        "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/商代有领璧环的分布、源流与功用研究-PaddleOCR-VL-1.6.xlsx",
+        "bytes": 17329
+      }
+    },
+    {
+      "paperName": "商王武丁征伐考——以殷墟YH127坑宾组卜辞为例.pdf",
+      "sourcePath": "/Users/krli/workspace/0701/essay/商王武丁征伐考——以殷墟YH127坑宾组卜辞为例.pdf",
+      "expectedCategoryCode": "B42",
+      "startedAt": "2026-07-13T11:16:13.579Z",
+      "status": "passed",
+      "projectId": "f6fd2c12-2490-4100-9b55-fba58bd11882",
+      "pageCount": 4,
+      "ocr": {
+        "provider": "paddleocr-official",
+        "model": "PaddleOCR-VL-1.6",
+        "profile": "paddleocr-official-document-parsing-v1.6",
+        "quality": "high",
+        "elapsedSeconds": 32,
+        "totalCharacters": 7393,
+        "characterCounts": [
+          2017,
+          1762,
+          2003,
+          1611
+        ],
+        "reviewPages": [],
+        "qualityFlags": []
+      },
+      "completedAt": "2026-07-13T11:20:22.046Z",
+      "totalElapsedSeconds": 248,
+      "classification": {
+        "provider": "kimi-coding",
+        "model": "kimi-for-coding",
+        "elapsedSeconds": 217,
+        "attempts": 1,
+        "title": "商王武丁征伐考——以殷墟YH127坑宾组卜辞为例",
+        "author": "徐明波",
+        "primaryCategoryCode": "B42",
+        "expectedCategoryCode": "B42",
+        "expectedCategoryMatched": true,
+        "crossReferenceCategoryCodes": [],
+        "confidence": 95,
+        "confidenceBand": "green",
+        "reviewStatus": "needs_review",
+        "candidateCount": 3,
+        "evidenceCount": 4,
+        "validationIssues": []
+      },
+      "export": {
+        "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/商王武丁征伐考——以殷墟YH127坑宾组卜辞为例-PaddleOCR-VL-1.6.xlsx",
+        "bytes": 17451
+      }
+    },
+    {
+      "paperName": "再议河南省图书馆对殷墟之发掘.pdf",
+      "sourcePath": "/Users/krli/workspace/0701/essay/再议河南省图书馆对殷墟之发掘.pdf",
+      "expectedCategoryCode": "D11",
+      "startedAt": "2026-07-13T11:20:22.048Z",
+      "status": "passed",
+      "projectId": "2cedb3f0-b7a1-484e-bc89-3be8f82385c0",
+      "pageCount": 3,
+      "ocr": {
+        "provider": "paddleocr-official",
+        "model": "PaddleOCR-VL-1.6",
+        "profile": "paddleocr-official-document-parsing-v1.6",
+        "quality": "high",
+        "elapsedSeconds": 78,
+        "totalCharacters": 5328,
+        "characterCounts": [
+          1450,
+          1986,
+          1892
+        ],
+        "reviewPages": [],
+        "qualityFlags": []
+      },
+      "completedAt": "2026-07-13T11:23:19.719Z",
+      "totalElapsedSeconds": 178,
+      "classification": {
+        "provider": "kimi-coding",
+        "model": "kimi-for-coding",
+        "elapsedSeconds": 99,
+        "attempts": 1,
+        "title": "再议河南省图书馆对殷墟之发掘",
+        "author": "任博韬",
+        "primaryCategoryCode": "D11",
+        "expectedCategoryCode": "D11",
+        "expectedCategoryMatched": true,
+        "crossReferenceCategoryCodes": [],
+        "confidence": 95,
+        "confidenceBand": "green",
+        "reviewStatus": "needs_review",
+        "candidateCount": 4,
+        "evidenceCount": 3,
+        "validationIssues": [
+          {
+            "code": "UNVERIFIABLE_FIELD_EVIDENCE",
+            "message": "文献类型字段的第 1 页证据无法核对。"
+          }
+        ]
+      },
+      "export": {
+        "path": "/Users/krli/workspace/0701/真实论文验收结果-2026-07-13-PaddleOCR-VL-1.6/exports/再议河南省图书馆对殷墟之发掘-PaddleOCR-VL-1.6.xlsx",
+        "bytes": 17528
+      }
+    }
+  ]
+}

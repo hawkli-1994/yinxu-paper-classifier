@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Descriptions, Empty, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Checkbox, Col, Descriptions, Empty, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ConfidenceBand, PaperFieldName, PaperResult, ReviewFeedbackInput } from '../../../shared/contracts';
 import { PAPER_FIELD_NAMES } from '../../../shared/contracts';
-import { addReviewEvidence, removeReviewEvidence, updateReviewCrossReferences, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory } from '../../../shared/review-model';
+import { addReviewEvidence, clearReviewFieldEvidence, removeReviewEvidence, updateReviewCrossReferences, updateReviewEvidence, updateReviewField, updateReviewPrimaryCategory } from '../../../shared/review-model';
 import { getCategoryPath, listLeafCategories } from '../../../shared/taxonomy';
 import { useAppStore } from '../../store';
 import { PdfEvidencePreview } from './PdfEvidencePreview';
@@ -15,7 +15,9 @@ const confidenceColor = (band: ConfidenceBand): string => ({ green: 'success', y
 const assessmentBand = (score: number): ConfidenceBand => (score >= 0.85 ? 'green' : score >= 0.6 ? 'yellow' : 'red');
 const categoryOptions = listLeafCategories().map((category) => ({ value: category.code, label: `${category.code} ${category.label}` }));
 const programManagedFields = new Set<PaperFieldName>(['一级分类', '二级分类', '三级细分类', '文件路径']);
-const emptyFeedback = (): ReviewFeedbackInput => ({ errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '' });
+const emptyFeedback = (): ReviewFeedbackInput => ({ errorTypes: [], projectReason: '', memoryAction: 'global_memory', reusableLesson: '', manualEvidenceConfirmed: false });
+const evidenceFieldPattern = /^(.+?)字段的第\s*\d+\s*页证据无法核对。$/u;
+const missingFieldAssessment = { score: 0, reason: '旧版结果未包含该字段，待补充。', evidence: [] };
 
 export const ReviewPage = (): React.JSX.Element => {
   const result = useAppStore((state) => state.result);
@@ -29,7 +31,7 @@ export const ReviewPage = (): React.JSX.Element => {
   const rows = useMemo(
     () =>
       result
-        ? PAPER_FIELD_NAMES.map((name) => ({ key: name, name, value: result.fields[name], assessment: result.fieldAssessments[name] }))
+        ? PAPER_FIELD_NAMES.map((name) => ({ key: name, name, value: result.fields[name] ?? '', assessment: result.fieldAssessments[name] ?? missingFieldAssessment }))
         : [],
     [result]
   );
@@ -38,6 +40,11 @@ export const ReviewPage = (): React.JSX.Element => {
 
   const update = (next: PaperResult): void => setResult({ ...next, reviewStatus: 'needs_review' });
   const selectedEvidence = result.evidence[Math.min(selectedEvidenceIndex, result.evidence.length - 1)];
+  const unverifiableFieldNames = result.validationIssues
+    .filter((issue) => issue.code === 'UNVERIFIABLE_FIELD_EVIDENCE')
+    .map((issue) => issue.message.match(evidenceFieldPattern)?.[1])
+    .filter((name): name is PaperFieldName => Boolean(name));
+  const hasUnverifiableEvidence = result.validationIssues.some((issue) => issue.code === 'UNVERIFIABLE_EVIDENCE' || issue.code === 'UNVERIFIABLE_FIELD_EVIDENCE');
 
   const save = async (): Promise<void> => {
     if (feedback.memoryAction === 'candidate_rule' && !feedback.reusableLesson.trim()) {
@@ -90,13 +97,30 @@ export const ReviewPage = (): React.JSX.Element => {
         showIcon
         title={`系统评估置信度：${result.confidence} 分。保存修改时，系统会重新校验证据并计算分数。`}
       />
-      {result.validationIssues.length > 0 ? (
+      {hasUnverifiableEvidence ? (
+        <Alert
+          className="section-alert"
+          type="warning"
+          showIcon
+          title="OCR 文本与原 PDF 有差异，不应成为人工复核的卡点"
+          description={
+            <Space orientation="vertical" size="small">
+              <Typography.Text>你可以直接在右侧对照原 PDF 修改引文；若原 PDF 清晰但 OCR 错漏，确认后即可保存。</Typography.Text>
+              {unverifiableFieldNames.length ? <Button size="small" onClick={() => update(clearReviewFieldEvidence(result, unverifiableFieldNames))}>移除 {unverifiableFieldNames.join('、')} 的无法核对引文</Button> : null}
+              <Checkbox checked={feedback.manualEvidenceConfirmed === true} onChange={(event) => setFeedback({ ...feedback, manualEvidenceConfirmed: event.target.checked })}>
+                我已对照原 PDF 人工核实这些证据，允许继续保存（系统将记录此确认）
+              </Checkbox>
+            </Space>
+          }
+        />
+      ) : null}
+      {result.validationIssues.filter((issue) => issue.code !== 'UNVERIFIABLE_EVIDENCE' && issue.code !== 'UNVERIFIABLE_FIELD_EVIDENCE').length > 0 ? (
         <Alert
           className="section-alert"
           type="error"
           showIcon
-          title="以下问题必须在确认前修复"
-          description={result.validationIssues.map((issue) => issue.message).join('；')}
+          title="以下信息仍需补充后保存"
+          description={result.validationIssues.filter((issue) => issue.code !== 'UNVERIFIABLE_EVIDENCE' && issue.code !== 'UNVERIFIABLE_FIELD_EVIDENCE').map((issue) => issue.message).join('；')}
         />
       ) : null}
       <Row gutter={[16, 16]}>

@@ -7,6 +7,17 @@ import { listCategories } from '../shared/taxonomy';
 
 const imageHeaders = ['图像编号', '来源论文编号', '原图号', '图像类型', '描绘对象', '视角信息', '是否带比例尺', '几何可复用等级', '纹理可复用等级', 'AI训练可用性', 'ControlNet适配类型', '图像分辨率', '背景纯净度', '纹饰提取价值', '学术可信度', '版权来源', '文件路径', '备注'];
 
+const spreadsheetColumn = (index: number): string => {
+  let value = index;
+  let name = '';
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+  return name;
+};
+
 const exportFileName = (project: ProjectRecord, result: PaperResult): string => {
   const label = `${result.fields.编号 || project.id}_${result.fields.作者 || '未署名'}_${result.fields.题名 || '未命名论文'}`;
   const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').replace('Z', '');
@@ -24,7 +35,7 @@ export const exportWorkbook = async (project: ProjectRecord, result: PaperResult
   const classification = workbook.addWorksheet('论文分类结果', { views: [{ state: 'frozen', ySplit: 1 }] });
   classification.addRow([...PAPER_FIELD_NAMES]);
   classification.addRow(PAPER_FIELD_NAMES.map((name) => result.fields[name]));
-  classification.autoFilter = { from: 'A1', to: 'Z2' };
+  classification.autoFilter = { from: 'A1', to: `${spreadsheetColumn(PAPER_FIELD_NAMES.length)}2` };
   classification.columns.forEach((column, index) => {
     column.width = index === 2 ? 42 : 20;
   });
@@ -73,10 +84,10 @@ export const exportWorkbook = async (project: ProjectRecord, result: PaperResult
   const assessments = workbook.addWorksheet('字段评估', { views: [{ state: 'frozen', ySplit: 1 }] });
   assessments.addRow(['字段', '当前值', '分数', '等级', '判断理由', '字段证据']);
   for (const name of PAPER_FIELD_NAMES) {
-    const assessment = result.fieldAssessments[name];
+    const assessment = result.fieldAssessments[name] ?? { score: 0, reason: '旧版结果未包含该字段，待补充。', evidence: [] };
     assessments.addRow([
       name,
-      result.fields[name],
+      result.fields[name] ?? '',
       assessment.score,
       assessment.score >= 0.85 ? '绿' : assessment.score >= 0.6 ? '黄' : '红',
       assessment.reason,

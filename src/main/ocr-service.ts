@@ -51,6 +51,12 @@ export const retry = async <T>(operation: () => Promise<T>, maxAttempts = 3, del
 export const PADDLE_DOCUMENT_PARSING_REQUEST = {
   model: Model.PaddleOCRVL16,
   options: {
+    // PaddleOCR-VL normally drops running headers and footers from Markdown.
+    // Scholarly PDFs often put the journal, issue, and pagination there, so keep
+    // those regions while continuing to suppress page numbers and footnotes.
+    markdownIgnoreLabels: ['number', 'footnote', 'aside_text'],
+    useDocOrientationClassify: true,
+    useDocUnwarping: true,
     useLayoutDetection: true,
     useChartRecognition: true,
     temperature: 0,

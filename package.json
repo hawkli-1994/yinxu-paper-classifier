@@ -1,6 +1,6 @@
 {
   "name": "yinxu-paper-classifier",
-  "version": "0.5.7",
+  "version": "0.6.0",
   "description": "殷墟论文分类助手 Windows 单机版",
   "main": "out/main/index.js",
   "type": "module",
@@ -14,9 +14,11 @@
     "test:e2e": "npm run build && playwright test",
     "test:smoke:win": "playwright test --config playwright.windows.config.ts",
     "evaluate:quality": "tsx tests/quality/evaluate.ts",
+    "prepare:mac-intel-native": "node scripts/prepare-mac-intel-native.mjs",
     "prepare:git-bash": "node scripts/prepare-git-bash.mjs",
     "prepare:win-runtime": "npm run prepare:git-bash",
-    "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64 --publish never"
+    "package:win": "npm run prepare:win-runtime && npm run build && electron-builder --win nsis portable --x64 --publish never",
+    "package:mac:intel": "npm run prepare:mac-intel-native && npm run build && electron-builder --mac dmg zip --x64 --publish never"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "latest",

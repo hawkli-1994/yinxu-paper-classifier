@@ -8,9 +8,9 @@
     "fields": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["编号", "作者", "题名", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
+      "required": ["编号", "作者", "题名", "研究领域", "期刊名称", "发表时间", "期号", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
       "properties": {
-        "编号": {"type": "string"}, "作者": {"type": "string"}, "题名": {"type": "string"}, "出处": {"type": "string"},
+        "编号": {"type": "string"}, "作者": {"type": "string"}, "题名": {"type": "string"}, "研究领域": {"type": "string"}, "期刊名称": {"type": "string"}, "发表时间": {"type": "string"}, "期号": {"type": "string"}, "出处": {"type": "string"},
         "文献类型": {"type": "string"}, "一级分类": {"type": "string"}, "二级分类": {"type": "string"}, "三级细分类": {"type": "string"},
         "核心材料载体": {"type": "string"}, "核心研究时段": {"type": "string"}, "出土地点": {"type": "string"}, "关键词": {"type": "string"},
         "视觉素材等级": {"type": "string"}, "可复原维度": {"type": "string"}, "几何精度等级": {"type": "string"}, "生图用途分类": {"type": "string"},
@@ -28,9 +28,9 @@
     "fieldAssessments": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["编号", "作者", "题名", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
+      "required": ["编号", "作者", "题名", "研究领域", "期刊名称", "发表时间", "期号", "出处", "文献类型", "一级分类", "二级分类", "三级细分类", "核心材料载体", "核心研究时段", "出土地点", "关键词", "视觉素材等级", "可复原维度", "几何精度等级", "生图用途分类", "风格锚点", "可动态化场景", "学术可信度", "适用工具链", "ControlNet条件", "训练数据价值", "版权使用范围", "数字化成果类型", "文件路径", "备注"],
       "properties": {
-        "编号": {"$ref": "#/$defs/fieldAssessment"}, "作者": {"$ref": "#/$defs/fieldAssessment"}, "题名": {"$ref": "#/$defs/fieldAssessment"}, "出处": {"$ref": "#/$defs/fieldAssessment"},
+        "编号": {"$ref": "#/$defs/fieldAssessment"}, "作者": {"$ref": "#/$defs/fieldAssessment"}, "题名": {"$ref": "#/$defs/fieldAssessment"}, "研究领域": {"$ref": "#/$defs/fieldAssessment"}, "期刊名称": {"$ref": "#/$defs/fieldAssessment"}, "发表时间": {"$ref": "#/$defs/fieldAssessment"}, "期号": {"$ref": "#/$defs/fieldAssessment"}, "出处": {"$ref": "#/$defs/fieldAssessment"},
         "文献类型": {"$ref": "#/$defs/fieldAssessment"}, "一级分类": {"$ref": "#/$defs/fieldAssessment"}, "二级分类": {"$ref": "#/$defs/fieldAssessment"}, "三级细分类": {"$ref": "#/$defs/fieldAssessment"},
         "核心材料载体": {"$ref": "#/$defs/fieldAssessment"}, "核心研究时段": {"$ref": "#/$defs/fieldAssessment"}, "出土地点": {"$ref": "#/$defs/fieldAssessment"}, "关键词": {"$ref": "#/$defs/fieldAssessment"},
         "视觉素材等级": {"$ref": "#/$defs/fieldAssessment"}, "可复原维度": {"$ref": "#/$defs/fieldAssessment"}, "几何精度等级": {"$ref": "#/$defs/fieldAssessment"}, "生图用途分类": {"$ref": "#/$defs/fieldAssessment"},

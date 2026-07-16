@@ -345,7 +345,7 @@ test('official PaddleOCR cloud pipeline processes the paper and supplementary ma
         expect(preparation.textReport?.ocrMode).toBe('cloud');
         expect(preparation.textReport?.ocrProvider).toBe('paddleocr-official');
         expect(preparation.textReport?.ocrModel).toBe('PaddleOCR-VL-1.6');
-        expect(preparation.textReport?.ocrPromptProfile).toBe('paddleocr-official-document-parsing-v1.6');
+        expect(preparation.textReport?.ocrPromptProfile).toBe('paddleocr-official-document-parsing-v1.7-header-footer');
         expect(preparation.textReport?.cloudAttemptedPages).toEqual([1]);
         expect(preparation.textReport?.ocrAppliedPages).toEqual([1]);
         expect(preparation.ocrApplied).toBe(true);
