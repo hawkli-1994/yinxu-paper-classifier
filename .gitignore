@@ -7,3 +7,7 @@ playwright-report/
 .DS_Store
 *.log
 resources/git-bash/
+
+# Local acceptance runs contain PDF copies, Electron profiles, model sessions and exports.
+# They are reproducible local evidence, not source files, and exceed Windows checkout paths.
+真实论文验收结果-*/
